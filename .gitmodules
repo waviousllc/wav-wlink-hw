@@ -1,0 +1,6 @@
+[submodule "rocket-chip"]
+	path = rocket-chip
+	url = git@github.com:chipsalliance/rocket-chip.git
+[submodule "wav-chisel-common-hw"]
+	path = wav-chisel-common-hw
+	url = git@github.com:lsteveol/wav-chisel-common-hw.git
