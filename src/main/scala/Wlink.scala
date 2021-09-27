@@ -39,15 +39,14 @@ class WithWlinkOnlyGen extends Config ((site, here, up) => {
 
 case class WlinkParams(
   phyParams         : WlinkPHYBaseParams,
-  baseAddr          : BigInt = 0x0,
-  axiFCbaseAddr     : BigInt = 0x200000,                          //Starting Base address of all AXI conversion nodes
+  axiFCOffset       : BigInt = 0x200000,                          //Starting Offset from wlink base addr of all AXI conversion nodes
   axiParams         : Option[Seq[WlinkAxiParams]] = None,
   apbTgtParams      : Option[Seq[WlinkApbTgtParams]] = None,
-  apbTgtFCbaseAddr  : BigInt = 0x210000,                          //Starting Base address of all APBTgt nodes
+  apbTgtFCOffset    : BigInt = 0x210000,                          //Starting Offset from wlink base addr of all APBTgt nodes
   apbIniParams      : Option[Seq[WlinkApbIniParams]] = None,
-  apbIniFCbaseAddr  : BigInt = 0x218000,                          //Starting Base address of all APBIni nodes
+  apbIniFCOffset    : BigInt = 0x218000,                          //Starting Offset from wlink base addr of all APBIni nodes
   gbParams          : Option[Seq[WlinkGeneralBusParams]] = None,
-  gbFCbaseAddr      : BigInt = 0x220000,                          //Starting Base address of all GeneralBus nodes
+  gbFCOffset        : BigInt = 0x220000,                          //Starting Base address of all GeneralBus nodes
   noRegTest         : Boolean= false
 )
 
@@ -68,10 +67,9 @@ class Wlink()(implicit p: Parameters) extends WlinkBase()
 class WlinkBase()(implicit p: Parameters) extends LazyModule{
 
   val params        = p(WlinkParamsKey) 
-
+  val wlinkBaseAddr = params.phyParams.baseAddr
   val numTxLanes    = params.phyParams.numTxLanes
   val numRxLanes    = params.phyParams.numRxLanes
-  val baseAddr      = params.baseAddr 
   
   //Index for keeping up with the data IDs as we add FC nodes
   var currentShortPacketIndex = 0x8
@@ -82,7 +80,7 @@ class WlinkBase()(implicit p: Parameters) extends LazyModule{
   
   val device = new SimpleDevice("wavwlink", Seq("wavious,wlink"))
   val node = WavAPBRegisterNode(
-    address = AddressSet.misaligned(baseAddr+0x30000, 0x100),      ///FIX THIS
+    address = AddressSet.misaligned(wlinkBaseAddr+0x30000, 0x100),      ///FIX THIS 
     device  = device,
     beatBytes = 4,
     noRegTest = params.noRegTest)
@@ -90,6 +88,7 @@ class WlinkBase()(implicit p: Parameters) extends LazyModule{
   
   val xbar    = LazyModule(new APBFanout)
   
+  //Magic, don't worry about it.
   val phy     = LazyModule(params.phyParams.phyType(p))
       
   val txrouter= LazyModule(new WlinkTxRouter)
@@ -143,6 +142,9 @@ class WlinkBase()(implicit p: Parameters) extends LazyModule{
     val app_clk       = IO(Input (Bool()))
     val app_clk_reset = IO(Input (Bool()))
     val interrupt     = IO(Output(Bool()))
+
+    //val sb_reset      = IO(Output(Bool()))
+    //val sb_wake       = IO(Output(Bool()))
 
     //---------------
     // PHY
@@ -305,16 +307,29 @@ class WithWlinkAPBTestConfig extends Config((site, here, up) => {
   case WlinkParamsKey => WlinkParams(
     phyParams = WlinkPHYGPIOExampleParams(
       numTxLanes = 1,
-      numRxLanes = 2
+      numRxLanes = 1
     ),
     apbTgtParams = Some(Seq(WlinkApbTgtParams()))
   )
 })
 
 object WlinkGen extends App {  
-  //Create an empty parameter if we have nothing to use
-  //implicit val p: Parameters = Parameters.empty
-  implicit val p: Parameters = new BasicWlinkConfig
+  
+  def getConfig(fullConfigClassNames: Seq[String]): Config = {
+    new Config(fullConfigClassNames.foldRight(Parameters.empty) { case (currentName, config) =>
+      val currentConfig = try {
+        Class.forName(currentName).newInstance.asInstanceOf[Config]
+      } catch {
+        case e: java.lang.ClassNotFoundException =>
+          import Chisel.throwException
+          throwException(s"""Unable to find part "$currentName" from "$fullConfigClassNames", did you misspell it or specify the wrong package path?""", e)
+      }
+      currentConfig ++ config
+    })
+  }
+  
+  //implicit val p: Parameters = new BasicWlinkConfig
+  implicit val p: Parameters = getConfig(Seq("wav.wlink.BasicWlinkConfig"))
   
   val axiverilog = (new ChiselStage).emitVerilog(
     LazyModule(new Wlink()(p)).module,

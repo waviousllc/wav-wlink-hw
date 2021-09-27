@@ -34,15 +34,17 @@ import scala.math.max
 case object WlinkAxiBus   extends Field[Option[Seq[WlinkAxiParams]]](None)
 
 case class WlinkAxiParams(
-  base            : BigInt = 0x0,
-  size            : BigInt = x"1_0000_0000_0000_0000",
-  beatBytes       : Int = 32,
-  idBits          : Int = 4,
-  executable      : Boolean = true,
-  name            : String = "axi",
-  pipeLineStage   : Boolean = false,
-  dataFifoSize    : Int = 32,
-  nonDataFifoSize : Int = 8)
+  base                : BigInt = 0x0,
+  size                : BigInt = x"1_0000_0000_0000_0000",
+  beatBytes           : Int = 32,
+  idBits              : Int = 4,
+  executable          : Boolean = true,
+  name                : String = "axi",
+  pipeLineStage       : Boolean = false,
+  dataFifoSize        : Int = 32,
+  nonDataFifoSize     : Int = 8,
+  startingLongDataId  : Int = 0x80,
+  startingShortDataId : Int = 0x8)
 
 
 /**
@@ -81,6 +83,9 @@ trait CanHaveAXI4Port { this: Wlink =>
   private val axiParamsOpt = params.axiParams
   private var index        = 0x0
   
+  //private var currentShortPacketIndex = 0x8
+  //private var currentLongPacketIndex  = 0x80
+  
   val axi2wlNodes = scala.collection.mutable.Buffer[(AXI4ToWlink, WlinkAxiParams, Boolean, AXI4IdentityNode, AXI4IdentityNode)]()
   
   axiParamsOpt.map(paramsmap =>
@@ -90,7 +95,7 @@ trait CanHaveAXI4Port { this: Wlink =>
                                                longPacketStart  = currentLongPacketIndex,
                                                address          = AddressSet.misaligned(axiParams.base, axiParams.size), 
                                                beatBytes        = axiParams.beatBytes, 
-                                               baseAddr         = params.baseAddr + params.axiFCbaseAddr + index,    
+                                               baseAddr         = wlinkBaseAddr + params.axiFCOffset + index,    
                                                idBits           = axiParams.idBits,
                                                name             = axiname,
                                                dataDepth        = axiParams.dataFifoSize,

@@ -65,9 +65,6 @@ object WlinkGeneralBusCreatePorts{
 
           BoringUtils.bore(gbus_in_wire, Seq(node.module.bus_in))
           BoringUtils.bore(node.module.bus_out, Seq(gbus_out_wire))
-
-          //BoringUtils.bore(gbus_in, Seq(node.module.io.bus_in))
-          //BoringUtils.bore(node.module.io.bus_out, Seq(gbus_out))
           
         }
       }
@@ -89,7 +86,7 @@ trait CanHaveGeneralBusPort{ this: Wlink =>
       val gbname = "wlink_" + gbParams.name
       val gb2wl  = LazyModule(new GeneralBusToWlink(shortPacketStart = currentShortPacketIndex,
                                                     longPacketStart  = currentLongPacketIndex,
-                                                    baseAddr         = params.baseAddr + params.gbFCbaseAddr + index, 
+                                                    baseAddr         = wlinkBaseAddr + params.gbFCOffset + index, 
                                                     name             = gbname,
                                                     width            = gbParams.width,
                                                     fifoSize         = gbParams.fifoSize,

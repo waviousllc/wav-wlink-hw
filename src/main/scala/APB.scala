@@ -86,7 +86,7 @@ trait CanHaveAPBTgtPort { this: Wlink =>
                                                     longPacketStart   = currentLongPacketIndex,
                                                     address           = AddressSet.misaligned(apbTgtParams.base, apbTgtParams.size), 
                                                     beatBytes         = apbTgtParams.beatBytes, 
-                                                    baseAddr          = params.baseAddr + params.apbTgtFCbaseAddr + index,  
+                                                    baseAddr          = wlinkBaseAddr + params.apbTgtFCOffset + index,  
                                                     name              = apbname,
                                                     noRegTest         = params.noRegTest))
                                                
@@ -177,7 +177,7 @@ trait CanHaveAPBIniPort { this: Wlink =>
       val apbname = "wlink_" + apbIniParams.name
       val apbIni2wl  = LazyModule(new APBIniToWlink(shortPacketStart    = currentShortPacketIndex,
                                                     longPacketStart     = currentLongPacketIndex,
-                                                    baseAddr            = params.baseAddr + params.apbIniFCbaseAddr + index,  
+                                                    baseAddr            = wlinkBaseAddr + params.apbIniFCOffset + index,  
                                                     name                = apbname,
                                                     noRegTest           = params.noRegTest))
                                                
