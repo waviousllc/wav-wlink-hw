@@ -1,0 +1,14 @@
+{signal: [
+
+  {name: 'rx_link_clk',		wave: '0..p......|........0'},  
+  {name: 'tx_link_data',	wave: 'x....23452|234523x..'},
+  {name: 'rx_data_valid',   wave: '0....1....|......0..'},
+  {name: 'rx_enter_lp',   	wave: '0.........|...10....'},
+  {name: 'rx_active_lanes',	wave: '2.........|.........', data:["N"]},
+  {},
+  
+  
+],
+  
+  head:{tick: 0}
+}

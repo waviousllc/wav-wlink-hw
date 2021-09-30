@@ -31,9 +31,11 @@ import scala.math.max
 
 
 case class WlinkGeneralBusParams(
-  width     : Int = 8,
-  name      : String = "generalbus",
-  fifoSize  : Int = 4
+  width               : Int = 8,
+  name                : String = "generalbus",
+  fifoSize            : Int = 4,
+  startingLongDataId  : Int = 0xa0,
+  startingShortDataId : Int = 0x40
 )
 
 
@@ -84,14 +86,21 @@ trait CanHaveGeneralBusPort{ this: Wlink =>
   gbParamsOpt.map(paramsmap =>
     paramsmap.foreach{gbParams =>
       val gbname = "wlink_" + gbParams.name
-      val gb2wl  = LazyModule(new GeneralBusToWlink(shortPacketStart = currentShortPacketIndex,
-                                                    longPacketStart  = currentLongPacketIndex,
+      val gb2wl  = LazyModule(new GeneralBusToWlink(shortPacketStart = gbParams.startingShortDataId,//currentShortPacketIndex,
+                                                    longPacketStart  = gbParams.startingLongDataId,//currentLongPacketIndex,
                                                     baseAddr         = wlinkBaseAddr + params.gbFCOffset + index, 
                                                     name             = gbname,
                                                     width            = gbParams.width,
                                                     fifoSize         = gbParams.fifoSize,
                                                     noRegTest        = params.noRegTest))
                                                
+      //Id Checks (need to make this better)
+      addId(gbParams.startingShortDataId + 0, s"${gbname}_crID")
+      addId(gbParams.startingShortDataId + 1, s"${gbname}_crackID")
+      addId(gbParams.startingShortDataId + 2, s"${gbname}_ackID")
+      addId(gbParams.startingShortDataId + 3, s"${gbname}_nackID")
+      
+      addId(gbParams.startingLongDataId + 0, s"${gbname}_data_ID")
       
       val temp = (gb2wl, gbParams, false)
       gb2wlNodes += temp
@@ -125,8 +134,8 @@ trait CanHaveGeneralBusPort{ this: Wlink =>
       index = index + 0x100
       
       
-      currentLongPacketIndex  +=1
-      currentShortPacketIndex +=4
+      //currentLongPacketIndex  +=1
+      //currentShortPacketIndex +=4
     }
   )
   

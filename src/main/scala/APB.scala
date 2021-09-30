@@ -33,13 +33,17 @@ import scala.math.max
   *   Parameter object which user will define in config fragments
   */
 case class WlinkApbTgtParams(
-  base            : BigInt = 0x0,
-  size            : BigInt = x"1_0000_0000",
-  beatBytes       : Int    = 4,
-  name            : String = "apbTgt")
+  base                : BigInt = 0x0,
+  size                : BigInt = x"1_0000_0000",
+  beatBytes           : Int    = 4,
+  name                : String = "apbTgt",
+  startingLongDataId  : Int = 0x90,
+  startingShortDataId : Int = 0x30)
 
 case class WlinkApbIniParams(
-  name            : String = "apbIni")
+  name                : String = "apbIni",
+  startingLongDataId  : Int = 0x90,
+  startingShortDataId : Int = 0x30)
 
 
 
@@ -82,14 +86,22 @@ trait CanHaveAPBTgtPort { this: Wlink =>
   apbTgtParamsOpt.map(paramsmap =>
     paramsmap.foreach{apbTgtParams =>
       val apbname = "wlink_" + apbTgtParams.name
-      val apbTgt2wl  = LazyModule(new APBTgtToWlink(shortPacketStart  = currentShortPacketIndex,
-                                                    longPacketStart   = currentLongPacketIndex,
+      val apbTgt2wl  = LazyModule(new APBTgtToWlink(shortPacketStart  = apbTgtParams.startingShortDataId,//currentShortPacketIndex,
+                                                    longPacketStart   = apbTgtParams.startingLongDataId,//currentLongPacketIndex,
                                                     address           = AddressSet.misaligned(apbTgtParams.base, apbTgtParams.size), 
                                                     beatBytes         = apbTgtParams.beatBytes, 
                                                     baseAddr          = wlinkBaseAddr + params.apbTgtFCOffset + index,  
                                                     name              = apbname,
                                                     noRegTest         = params.noRegTest))
-                                               
+      
+      //Id Checks (need to make this better)
+      addId(apbTgtParams.startingShortDataId + 0, s"${apbname}_crID")
+      addId(apbTgtParams.startingShortDataId + 1, s"${apbname}_crackID")
+      addId(apbTgtParams.startingShortDataId + 2, s"${apbname}_ackID")
+      addId(apbTgtParams.startingShortDataId + 3, s"${apbname}_nackID")
+      
+      addId(apbTgtParams.startingLongDataId + 0, s"${apbname}_data_ID")
+                                                     
       val temp = (apbTgt2wl, apbTgtParams, false)
       apbtgtwlNodes += temp
                                                      
@@ -119,8 +131,8 @@ trait CanHaveAPBTgtPort { this: Wlink =>
       index = index + 0x100
       
       
-      currentLongPacketIndex  += 1
-      currentShortPacketIndex += 4
+      //currentLongPacketIndex  += 1
+      //currentShortPacketIndex += 4
     }
   )
   
@@ -175,12 +187,20 @@ trait CanHaveAPBIniPort { this: Wlink =>
   apbIniParamsOpt.map(paramsmap =>
     paramsmap.foreach{apbIniParams =>
       val apbname = "wlink_" + apbIniParams.name
-      val apbIni2wl  = LazyModule(new APBIniToWlink(shortPacketStart    = currentShortPacketIndex,
-                                                    longPacketStart     = currentLongPacketIndex,
+      val apbIni2wl  = LazyModule(new APBIniToWlink(shortPacketStart    = apbIniParams.startingShortDataId,//currentShortPacketIndex,
+                                                    longPacketStart     = apbIniParams.startingLongDataId,//currentLongPacketIndex,
                                                     baseAddr            = wlinkBaseAddr + params.apbIniFCOffset + index,  
                                                     name                = apbname,
                                                     noRegTest           = params.noRegTest))
-                                               
+      
+      //Id Checks (need to make this better)
+      addId(apbIniParams.startingShortDataId + 0, s"${apbname}_crID")
+      addId(apbIniParams.startingShortDataId + 1, s"${apbname}_crackID")
+      addId(apbIniParams.startingShortDataId + 2, s"${apbname}_ackID")
+      addId(apbIniParams.startingShortDataId + 3, s"${apbname}_nackID")
+      
+      addId(apbIniParams.startingLongDataId + 0, s"${apbname}_data_ID")
+      
       val temp = (apbIni2wl, apbIniParams, false)
       apbiniwlNodes += temp
                                                      
@@ -210,8 +230,8 @@ trait CanHaveAPBIniPort { this: Wlink =>
       index = index + 0x100
       
       
-      currentLongPacketIndex  += 1
-      currentShortPacketIndex += 4
+      //currentLongPacketIndex  += 1
+      //currentShortPacketIndex += 4
     }
   )
   

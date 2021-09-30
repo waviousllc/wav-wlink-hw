@@ -12,8 +12,11 @@ lazy val root = (project in file("."))
   .settings(
     name := "wav-wlink-hw",
     libraryDependencies ++= Seq(
-      "edu.berkeley.cs" %% "chisel3" % "3.4.2",
-      "edu.berkeley.cs" %% "chiseltest" % "0.3.2" % "test"
+      "org.scalatest" %% "scalatest" % "3.2.0" % "test",
+      "edu.berkeley.cs" %% "chisel3" % "3.4.3",
+      "edu.berkeley.cs" %% "chiseltest" % "0.3.4" % "test",
+      //"edu.berkeley.cs" %% "chiseltest" % "0.3.4",
+      "com.github.scopt" %% "scopt" % "4.0.1"
     ),
     scalacOptions ++= Seq(
       "-Xsource:2.11",

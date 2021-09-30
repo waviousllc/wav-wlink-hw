@@ -25,12 +25,6 @@ import freechips.rocketchip.devices.tilelink._
 
 
 
-
-sealed trait WavWlinkPHYVersion
-case object WlinkPHYD2D  extends WavWlinkPHYVersion
-case object WlinkPHYGPIO extends WavWlinkPHYVersion
-
-
 case object WlinkOnlyGen  extends Field[Boolean](false)
 class WithWlinkOnlyGen extends Config ((site, here, up) => {
   case WlinkOnlyGen => true
@@ -51,32 +45,28 @@ case class WlinkParams(
 )
 
 
-//case object WlinkParamsKey extends Field[Option[WlinkParams]](None)
 case object WlinkParamsKey extends Field[WlinkParams]
 
 /**
   *   Top Level of the Wlink Controller
   *   
   */
-class Wlink()(implicit p: Parameters) extends WlinkBase() 
+class Wlink()(implicit p: Parameters) extends WlinkBase()
   with CanHaveAXI4Port
   with CanHaveAPBTgtPort
   with CanHaveAPBIniPort
   with CanHaveGeneralBusPort
 
-class WlinkBase()(implicit p: Parameters) extends LazyModule{
+class WlinkBase()(implicit p: Parameters) extends LazyModule with WlinkApplicationLayerChecks{
 
   val params        = p(WlinkParamsKey) 
   val wlinkBaseAddr = params.phyParams.baseAddr
   val numTxLanes    = params.phyParams.numTxLanes
   val numRxLanes    = params.phyParams.numRxLanes
   
-  //Index for keeping up with the data IDs as we add FC nodes
-  var currentShortPacketIndex = 0x8
-  var currentLongPacketIndex  = 0x80
-    
   var crcErrIndex             = 0
   
+  println(s"${p(WlinkParamsKey)}")
   
   val device = new SimpleDevice("wavwlink", Seq("wavious,wlink"))
   val node = WavAPBRegisterNode(
@@ -98,7 +88,7 @@ class WlinkBase()(implicit p: Parameters) extends LazyModule{
   val rxpstate= LazyModule(new WlinkRxPstateCtrl)
   
   val lltx    = LazyModule(new WlinkTxLinkLayer(numTxLanes, params.phyParams.phyDataWidth))
-  val llrx    = LazyModule(new WlinkRxLinkLayer(numRxLanes, params.phyParams.phyDataWidth))
+  val llrx    = LazyModule(new WlinkRxLinkLayer(numRxLanes, params.phyParams.phyDataWidth, validLaneSeq=Seq.fill(numRxLanes){true}))
   
   if(p(WlinkOnlyGen)){
     val ApbPort = APBMasterNode(
@@ -143,8 +133,9 @@ class WlinkBase()(implicit p: Parameters) extends LazyModule{
     val app_clk_reset = IO(Input (Bool()))
     val interrupt     = IO(Output(Bool()))
 
-    //val sb_reset      = IO(Output(Bool()))
-    //val sb_wake       = IO(Output(Bool()))
+    val sb_reset_in   = IO(Input (Bool()))
+    val sb_reset_out  = IO(Output(Bool()))
+    val sb_wake       = IO(Output(Bool()))
 
     //---------------
     // PHY
@@ -162,6 +153,9 @@ class WlinkBase()(implicit p: Parameters) extends LazyModule{
     val active_rx_lanes                   = Wire(UInt(numRxLanes.W))
     val swi_short_packet_max              = Wire(UInt(8.W))
     val swi_preq_data_id                  = Wire(UInt(8.W))
+    val swi_sb_reset_in_muxed             = Wire(Bool())
+    val swi_lltx_enable                   = Wire(Bool())
+    val swi_llrx_enable                   = Wire(Bool())
     
     
     
@@ -179,7 +173,7 @@ class WlinkBase()(implicit p: Parameters) extends LazyModule{
     phy.module.link_tx.tx_data_valid      := ~lltx.module.io.link_idle            //do we even need this?
     lltx.module.clock                     := tx_link_clk.asClock
     lltx.module.reset                     := tx_link_clk_reset.asAsyncReset    
-    lltx.module.io.enable                 := swi_enable
+    lltx.module.io.enable                 := swi_lltx_enable & ~swi_sb_reset_in_muxed
     
     lltx.module.io.active_lanes           := active_tx_lanes
     lltx.module.io.swi_short_packet_max   := swi_short_packet_max
@@ -194,16 +188,19 @@ class WlinkBase()(implicit p: Parameters) extends LazyModule{
     txpstate.module.reset                 := tx_link_clk_reset.asAsyncReset
     txpstate.module.io.swi_preq_data_id   := swi_preq_data_id
     txpstate.module.io.tx_ready           := phy.module.link_tx.tx_ready
+    sb_wake                               := txpstate.module.io.tx_en
     
     
     llrx.module.clock                     := rx_link_clk.asClock
     llrx.module.reset                     := rx_link_clk_reset.asAsyncReset
-    llrx.module.io.enable                 := swi_enable
+    llrx.module.io.enable                 := swi_llrx_enable
     llrx.module.io.active_lanes           := active_rx_lanes
     llrx.module.io.swi_short_packet_max   := swi_short_packet_max
     
     llrx.module.io.link_data              := phy.module.link_rx.rx_link_data
     llrx.module.io.ll_rx_valid            := phy.module.link_rx.rx_data_valid
+    
+    sb_reset_out                          := llrx.module.io.in_error_state
     
     phy.module.link_rx.rx_active_lanes    := active_rx_lanes
     
@@ -229,10 +226,28 @@ class WlinkBase()(implicit p: Parameters) extends LazyModule{
     val ecc_corrected_w1c     = Wire(Bool())
     val ecc_corrected_int_en  = Wire(Bool())
     
+    val ecc_corrected_sp = Module(new WavSyncPulse)
+    ecc_corrected_sp.io.clk_in        := rx_link_clk.asClock
+    ecc_corrected_sp.io.clk_in_reset  := rx_link_clk_reset.asAsyncReset
+    ecc_corrected_sp.io.data_in       := llrx.module.io.ecc_corrected
+    
+    ecc_corrected_sp.io.clk_out       := clock
+    ecc_corrected_sp.io.clk_out_reset := reset.asAsyncReset
+    
+    val ecc_corrupted_sp = Module(new WavSyncPulse)
+    ecc_corrupted_sp.io.clk_in        := rx_link_clk.asClock
+    ecc_corrupted_sp.io.clk_in_reset  := rx_link_clk_reset.asAsyncReset
+    ecc_corrupted_sp.io.data_in       := llrx.module.io.ecc_corrupted
+    
+    ecc_corrupted_sp.io.clk_out       := clock
+    ecc_corrupted_sp.io.clk_out_reset := reset.asAsyncReset
+    
+    
     
     interrupt         := ((crc_errors_int_en & crc_errors_w1c)       |
                           (ecc_corrupted_w1c & ecc_corrupted_int_en) |
                           (ecc_corrected_w1c & ecc_corrected_int_en))
+    
                               
     //=======================================
     // Registers
@@ -247,8 +262,10 @@ class WlinkBase()(implicit p: Parameters) extends LazyModule{
       
       WavSWReg(0x8,  "EnableReset", "",
         WavRW(swi_enable,       true.B,                       "enable",           "Enable for application logic"),
+        WavRW(swi_lltx_enable,  true.B,                       "lltx_enable",      "Enable for LL TX logic"),
+        WavRW(swi_llrx_enable,  true.B,                       "lltx_enable",      "Enable for LL RX logic"),
         WavRW(swi_swreset,      false.B,                      "swreset",          "Software reset for application logic"),
-        WavRW(swi_short_packet_max,       "h2f".U,            "short_packet_max", ""),
+        WavRW(swi_short_packet_max,       "h7f".U,            "short_packet_max", ""),
         WavRW(swi_preq_data_id,           "h2".U,             "preq_data_id",     "")),
         
       WavSWReg(0x10,  "ActiveTxLanes", "Lane Control",
@@ -261,6 +278,8 @@ class WlinkBase()(implicit p: Parameters) extends LazyModule{
         WavRW(txpstate.module.io.swi_cycles_post_preq, 255.U, "cycles_post_preq", "Number of link clk cycles after sending P Req to enter LP state")),
       
       WavSWReg(0x34,  "LinkStatus", "LinkStatus",
+        WavRWMux(in=sb_reset_in,                 muxed=swi_sb_reset_in_muxed,     reg_reset=false.B, mux_reset=false.B, "sb_reset_in", ""),
+        WavRO(llrx.module.io.in_error_state,                  "in_error_state",   "Indicates if RX is in error state"),
         WavRO(phy.module.link_tx.tx_ready,                    "tx_active",        "Indicates if TX lanes are active, ready to transmit data"),
         WavRO(phy.module.link_rx.rx_data_valid,               "rx_active",        "Indicates if TX lanes are active, ready to transmit data (Always asserted when in GPIO Mode)")),
       
@@ -273,69 +292,74 @@ class WlinkBase()(implicit p: Parameters) extends LazyModule{
       WavSWReg(0x40,  "LinkInterrupts", "Interrupts for Link",
         WavW1C((crc_errors.orR),             crc_errors_w1c,               "crc_errors",           ""),
         WavRW(crc_errors_int_en,             true.B,                       "crc_errors_int_en",    ""),
-        WavW1C(llrx.module.io.ecc_corrected, ecc_corrected_w1c,            "ecc_corrected",        ""),
+        WavW1C(ecc_corrected_sp.io.data_out, ecc_corrected_w1c,            "ecc_corrected",        ""),
         WavRW(ecc_corrected_int_en,          false.B,                      "ecc_corrected_int_en", ""),
-        WavW1C(llrx.module.io.ecc_corrupted, ecc_corrupted_w1c,            "ecc_corrupted",        ""),
+        WavW1C(ecc_corrupted_sp.io.data_out, ecc_corrupted_w1c,            "ecc_corrupted",        ""),
         WavRW(ecc_corrupted_int_en,          true.B,                       "ecc_corrupted_int_en", ""))
     )
   }
   
 }
 
+trait WlinkApplicationLayerChecks { this: WlinkBase =>
+  
+  // Id List for checking against already defined IDs
+  // ID is key, string name of Node is value
+  val idList = scala.collection.mutable.Map[Int, String]()
+  
+  def addId(id: Int, block: String): Unit = {
+    require(!(idList contains id), s"Data ID ${id} is already used for ${idList(id)}!!")
+    idList(id) = block
+    println(s"${block}: 0x${id.toHexString}")
+  }
+  
+}
+
+
 /**********************************************************************
 *   Generation Wrappers
 **********************************************************************/
 
 
-class WithWlinkTestConfig extends Config((site, here, up) => {
-  case WlinkParamsKey => WlinkParams(
-    phyParams = WlinkPHYGPIOExampleParams(
-      numTxLanes = 2,
-      numRxLanes = 2,
-    ),
-    axiParams = Some(Seq(WlinkAxiParams()))
-  )
-})
-
-class BasicWlinkConfig extends Config(
-  new WithWlinkAPBTestConfig ++
-  new WithWlinkOnlyGen
-)
-
-
-class WithWlinkAPBTestConfig extends Config((site, here, up) => {
-  case WlinkParamsKey => WlinkParams(
-    phyParams = WlinkPHYGPIOExampleParams(
-      numTxLanes = 1,
-      numRxLanes = 1
-    ),
-    apbTgtParams = Some(Seq(WlinkApbTgtParams()))
-  )
-})
-
 object WlinkGen extends App {  
+    
+  case class WlinkConfig(
+    outputDir   : String = "./output",
+    configName  : String = "wav.wlink.Wlink1LaneAXI32bitConfig")
   
-  def getConfig(fullConfigClassNames: Seq[String]): Config = {
-    new Config(fullConfigClassNames.foldRight(Parameters.empty) { case (currentName, config) =>
-      val currentConfig = try {
-        Class.forName(currentName).newInstance.asInstanceOf[Config]
-      } catch {
-        case e: java.lang.ClassNotFoundException =>
-          import Chisel.throwException
-          throwException(s"""Unable to find part "$currentName" from "$fullConfigClassNames", did you misspell it or specify the wrong package path?""", e)
-      }
-      currentConfig ++ config
-    })
+  import scopt.OParser
+  val builder = OParser.builder[WlinkConfig]
+  val parser1 = {
+    import builder._
+    OParser.sequence(
+      programName("WlinkGen"),
+      head("WlinkGen", "0.1"),
+      // option -f, --foo
+      opt[String]('o', "outputdir")
+        .action((x, c) => c.copy(outputDir = x))
+        .text("output directory"),
+      
+      opt[String]('c', "configName")
+        .action((x, c) => c.copy(configName = x))
+        .text("config name <package>.<config>"),
+    )
   }
   
-  //implicit val p: Parameters = new BasicWlinkConfig
-  implicit val p: Parameters = getConfig(Seq("wav.wlink.BasicWlinkConfig"))
+  OParser.parse(parser1, args, WlinkConfig()) match {
+    case Some(config) => {
+      implicit val p: Parameters = WavConfigUtil.getConfig(Seq(config.configName))
   
-  val axiverilog = (new ChiselStage).emitVerilog(
-    LazyModule(new Wlink()(p)).module,
-     
-    //args
-    Array("--target-dir", "output/")
-  )
+      val verilog = (new ChiselStage).emitVerilog(
+        LazyModule(new Wlink()(p)).module,
+
+        //args
+        Array("--target-dir", config.outputDir)
+      )
+    }
+    case _ => {
+      System.exit(1)
+    }
+  }
+  
 }
 

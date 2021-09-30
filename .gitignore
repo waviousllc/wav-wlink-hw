@@ -1,0 +1,15 @@
+verif/*.log
+verif/*.lx2
+verif/wlink_tb
+
+docs/build
+docs/venv
+
+project/project
+project/target
+target/
+
+
+test_run_dir/
+
+output/

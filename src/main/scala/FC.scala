@@ -148,10 +148,12 @@ class WlinkGenericFCSM(
     // Receive Side
     //------------------------------------    
     //UNTIL I CAN FIX THE WIDTH IN DIPLOMACY
-    val rxcrcgen = Module(new WlinkCrcGen(rxWlinkDataWidth))
-    rxcrcgen.io.in                := ll_rx.data
+    //val rxcrcgen = Module(new WlinkCrcGen(rxWlinkDataWidth))
+    //rxcrcgen.io.in                := ll_rx.data
     
-    val rx_crc_computed           = rxcrcgen.io.out//WlinkCrcGen(ll_rx.data)
+    //val rx_crc_computed           = rxcrcgen.io.out//WlinkCrcGen(ll_rx.data)
+    val rx_crc_computed           = WlinkCrcGen(ll_rx.data)
+    
     val crc_corrupt               = Mux((ll_rx.sop && ll_rx.valid && (ll_rx.data_id === swi_data_id)) & ~disable_crc, (rx_crc_computed =/= ll_rx.crc), false.B)
     //val crc_corrupt               = Mux(~disable_crc, (rx_crc_computed =/= ll_rx.crc), false.B)
     val crc_errors_in             = Wire(UInt(16.W))

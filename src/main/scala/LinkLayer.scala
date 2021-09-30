@@ -491,16 +491,6 @@ class WlinkTxLinkLayer(
     val topIndex          = Mux(is_short_pkt, 4.U, ll.word_count + 6.U)               //TODO: Add CRC option here
     val endOfPacket       = incrByteCount >= topIndex
     
-    //This updates the link_data interms of the bytes that are being sent out this cycle
-    //Here we are mainly just selecting N bytes of data, where N is the number of bytes
-    //possible to send (e.g. 4 if 2lane@16bit). The swizzle to the proper byte stripe
-    //is handled later
-    //
-    //Since supporting every possible lane combination can induce deep combinational
-    //paths, we have the option to limit the number of valid lanes by setting
-    //the validLaneSeq to give us the possible combinations.
-    //e.g. you may have an 8lane, but only want to support 1/2/4/8 lane configs
-    // or you have something like 10 lanes and want to support 1/5/10
     
     def updateLinkData: Unit = {
       for(i <- 0 until numLanes){
@@ -603,12 +593,15 @@ class WlinkRxLinkLayer(
       val ll_rx_valid           = Input (Bool())
       val link_data             = Input (UInt((numLanes*phyDataWidth).W))
       val ll_rx_state           = Output(UInt(4.W))
+      val in_error_state        = Output(Bool())
     })
     
     
     val nstate                    = WireInit(WlinkRxLLState.IDLE)
     val state                     = RegNext(nstate, WlinkRxLLState.IDLE)
     val enable_ff2                = WavDemetReset(io.enable)
+
+    io.in_error_state             := RegNext((state === WlinkRxLLState.ERROR), false.B)
     
     val ll = node.out.head._1
     val (blah, edgesOut) = node.out.unzip
@@ -659,19 +652,6 @@ class WlinkRxLinkLayer(
     val endOfPacket       = incrByteCount >= topIndex
     
     
-    
-    val upperBC = log2Ceil(numBytes).toInt
-    //WORKS
-    //This causes some deeper combinational paths. Need to find a good way to
-    //have the logic created where it doesn't account for EVERY combination
-//     def updateAppData: Unit = {
-//       for(i <- 0 until numLanes ){
-//         val byte_base     = (i*2).asUInt
-//         val byte_base_p1  = ((i*2)+1).asUInt
-//         ll_byte_index(byte_count + byte_base)    := link_data_byte_index(byte_base)
-//         ll_byte_index(byte_count + byte_base_p1) := link_data_byte_index(byte_base_p1)
-//       }
-//     }
     def updateAppDataIdleState: Unit = {
       //for(i <- 4 until (numLanes*phyDataWidth/8) ){
         for(i <- (numLanes*phyDataWidth/8)-1 to 4 by -1){
@@ -768,18 +748,7 @@ class WlinkRxLinkLayer(
     
     
     
-    //Arranging the byte index to the specific lane
-    //Handles the alignment for 32/16/8bit
-//     for(i <- 0 until numLanes){
-//       phyDataWidth match{
-//         case 16 => {
-//           when(i.asUInt <= active_lanes){
-//             link_data_byte_index(i.asUInt)                       := link_data_lane_index(i)(7 ,0)
-//             link_data_byte_index(i.asUInt + active_lanes + 1.U)  := link_data_lane_index(i)(15,8)
-//           }
-//         }
-//       }
-//     }
+    require((phyDataWidth==16), "only 16bit phyDataWidth supported at the moment, sorry bruh")
     
     for(i <- 0 until numLanes){
       phyDataWidth match{

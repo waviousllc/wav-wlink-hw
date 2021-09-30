@@ -53,17 +53,21 @@ case class WlinkAxiParams(
   *   diplo graph but want to create the design
   */
 object WlinkAxi4CreatePorts{
-  def apply(nodes: scala.collection.mutable.Buffer[(AXI4ToWlink, WlinkAxiParams, Boolean, AXI4IdentityNode, AXI4IdentityNode)])(implicit p: Parameters): Unit = {
-    nodes.foreach{ case (node, params, connected, iniIdNode, tgtIdNode) =>
+  //def apply(nodes: scala.collection.mutable.Buffer[(AXI4ToWlink, WlinkAxiParams, Boolean, AXI4IdentityNode, AXI4IdentityNode)])(implicit p: Parameters): Unit = {
+  def apply(nodes: scala.collection.mutable.Buffer[(AXI4ToWlink, WlinkAxiParams, Boolean)])(implicit p: Parameters): Unit = {
+    //nodes.foreach{ case (node, params, connected, iniIdNode, tgtIdNode) =>
+    nodes.foreach{ case (node, params, connected) =>
       
       if(!connected){
         //dummy nodes, he's so smaht jenny
         val myAxiTgtDriver = node.axi_tgt_node.copy()
         val myAxiIniDriver = node.axi_ini_node.copy()
                 
-        myAxiTgtDriver    := iniIdNode
-        tgtIdNode         := myAxiIniDriver
-
+        //myAxiTgtDriver    := iniIdNode
+        //tgtIdNode         := myAxiIniDriver
+        myAxiTgtDriver    := node.axi_ini_node
+        node.axi_tgt_node := myAxiIniDriver
+        
         val axi_ini = InModuleBody { myAxiTgtDriver.makeIOs()(valName=ValName(params.name + "_ini")) }
         val axi_tgt = InModuleBody { myAxiIniDriver.makeIOs()(valName=ValName(params.name + "_tgt")) }
       }
@@ -86,71 +90,106 @@ trait CanHaveAXI4Port { this: Wlink =>
   //private var currentShortPacketIndex = 0x8
   //private var currentLongPacketIndex  = 0x80
   
-  val axi2wlNodes = scala.collection.mutable.Buffer[(AXI4ToWlink, WlinkAxiParams, Boolean, AXI4IdentityNode, AXI4IdentityNode)]()
+  //val axi2wlNodes = scala.collection.mutable.Buffer[(AXI4ToWlink, WlinkAxiParams, Boolean, AXI4IdentityNode, AXI4IdentityNode)]()
+  val axi2wlNodes = scala.collection.mutable.Buffer[(AXI4ToWlink, WlinkAxiParams, Boolean)]()
   
   axiParamsOpt.map(paramsmap =>
     paramsmap.foreach{axiParams =>
       val axiname = "wlink_" + axiParams.name
-      val axi2wl  = LazyModule(new AXI4ToWlink(shortPacketStart = currentShortPacketIndex,
-                                               longPacketStart  = currentLongPacketIndex,
+      val axi2wl  = LazyModule(new AXI4ToWlink(shortPacketStart = axiParams.startingShortDataId,//currentShortPacketIndex,
+                                               longPacketStart  = axiParams.startingLongDataId,//currentLongPacketIndex,
                                                address          = AddressSet.misaligned(axiParams.base, axiParams.size), 
                                                beatBytes        = axiParams.beatBytes, 
                                                baseAddr         = wlinkBaseAddr + params.axiFCOffset + index,    
                                                idBits           = axiParams.idBits,
-                                               name             = axiname,
+                                               fcName           = axiname,
                                                dataDepth        = axiParams.dataFifoSize,
                                                nonDataDepth     = axiParams.nonDataFifoSize,
                                                maxXferBytes     = axiParams.beatBytes * (1 << AXI4Parameters.lenBits),
                                                noRegTest        = params.noRegTest))
-                                               
+        
+      //Id Checks (need to make this better)
+      addId(axiParams.startingShortDataId + 0, s"${axiname}_aw_crID")
+      addId(axiParams.startingShortDataId + 1, s"${axiname}_aw_crackID")
+      addId(axiParams.startingShortDataId + 2, s"${axiname}_aw_ackID")
+      addId(axiParams.startingShortDataId + 3, s"${axiname}_aw_nackID")
+      
+      addId(axiParams.startingShortDataId + 4, s"${axiname}_w_crID")
+      addId(axiParams.startingShortDataId + 5, s"${axiname}_w_crackID")
+      addId(axiParams.startingShortDataId + 6, s"${axiname}_w_ackID")
+      addId(axiParams.startingShortDataId + 7, s"${axiname}_w_nackID")
+      
+      addId(axiParams.startingShortDataId + 8,  s"${axiname}_b_crID")
+      addId(axiParams.startingShortDataId + 9,  s"${axiname}_b_crackID")
+      addId(axiParams.startingShortDataId + 10, s"${axiname}_b_ackID")
+      addId(axiParams.startingShortDataId + 11, s"${axiname}_b_nackID")
+      
+      addId(axiParams.startingShortDataId + 12, s"${axiname}_ar_crID")
+      addId(axiParams.startingShortDataId + 13, s"${axiname}_ar_crackID")
+      addId(axiParams.startingShortDataId + 14, s"${axiname}_ar_ackID")
+      addId(axiParams.startingShortDataId + 15, s"${axiname}_ar_nackID")
+      
+      addId(axiParams.startingShortDataId + 16, s"${axiname}_r_crID")
+      addId(axiParams.startingShortDataId + 17, s"${axiname}_r_crackID")
+      addId(axiParams.startingShortDataId + 18, s"${axiname}_r_ackID")
+      addId(axiParams.startingShortDataId + 19, s"${axiname}_r_nackID")
+      
+      addId(axiParams.startingLongDataId + 0, s"${axiname}_aw_data_ID")
+      addId(axiParams.startingLongDataId + 1, s"${axiname}_w_data_ID")
+      addId(axiParams.startingLongDataId + 2, s"${axiname}_b_data_ID")
+      addId(axiParams.startingLongDataId + 3, s"${axiname}_ar_data_ID")
+      addId(axiParams.startingLongDataId + 4, s"${axiname}_r_data_ID")
+                                                     
       //the addition of optional pipeline stage causes some grief as we want an "easy" (ok
       //as easy as we can get it) way to connect this without tons of pipeline checks all over
       //the place. So we will have an idtentity node here that we pass to the CreatePorts object.
       //There may be a better way to do this.......
-      var tgtIdNode = AXI4IdentityNode()(valName=ValName(axiParams.name+"intermediate_tgt"))
-      var iniIdNode = AXI4IdentityNode()(valName=ValName(axiParams.name+"intermediate_ini"))
+      //var tgtIdNode = AXI4IdentityNode()(valName=ValName(axiParams.name+"intermediate_tgt"))
+      //var iniIdNode = AXI4IdentityNode()(valName=ValName(axiParams.name+"intermediate_ini"))
+//       var tgtIdNode = AXI4IdentityNode()(valName=ValName(axiParams.name+"tgt"))
+//       var iniIdNode = AXI4IdentityNode()(valName=ValName(axiParams.name+"ini"))
+//       
+//       
+//       if(axiParams.pipeLineStage){
+//         // Optional pipeline stage. This can help when memories are used or for regioning the
+//         // AXI interface somehwere close to the boundary of the flooplan
+//         //Not using the companion object as we want to be able to name this
+//         val tgtBuffer = LazyModule(new AXI4Buffer(BufferParams(1, false, false), 
+//                                                   BufferParams(1, false, false), 
+//                                                   BufferParams(1, false, false), 
+//                                                   BufferParams(1, false, false), 
+//                                                   BufferParams(1, false, false)))
+//         val iniBuffer = LazyModule(new AXI4Buffer(BufferParams(1, false, false), 
+//                                                   BufferParams(1, false, false), 
+//                                                   BufferParams(1, false, false), 
+//                                                   BufferParams(1, false, false), 
+//                                                   BufferParams(1, false, false)))
+//       
+//         tgtBuffer.suggestName(axiParams.name+"_tgtBuffer")
+//         iniBuffer.suggestName(axiParams.name+"_iniBuffer")
+//         
+//         //Connect to the application clock and reset that we generate
+//         val connectPipeLine = InModuleBody{
+//           iniBuffer.module.clock := app_clk_scan.asClock
+//           iniBuffer.module.reset := app_clk_reset_scan.asAsyncReset
+//           
+//           tgtBuffer.module.clock := app_clk_scan.asClock
+//           tgtBuffer.module.reset := app_clk_reset_scan.asAsyncReset
+//         }
+//         
+//         axi2wl.axi_tgt_node := tgtBuffer.node := tgtIdNode
+//         iniIdNode           := iniBuffer.node := axi2wl.axi_ini_node
+//         
+//       } else {
+//       
+//         axi2wl.axi_tgt_node := tgtIdNode
+//         iniIdNode           := axi2wl.axi_ini_node
+//       
+//       }
       
       
-      
-      if(axiParams.pipeLineStage){
-        // Optional pipeline stage. This can help when memories are used or for regioning the
-        // AXI interface somehwere close to the boundary of the flooplan
-        //Not using the companion object as we want to be able to name this
-        val tgtBuffer = LazyModule(new AXI4Buffer(BufferParams(1, false, false), 
-                                                  BufferParams(1, false, false), 
-                                                  BufferParams(1, false, false), 
-                                                  BufferParams(1, false, false), 
-                                                  BufferParams(1, false, false)))
-        val iniBuffer = LazyModule(new AXI4Buffer(BufferParams(1, false, false), 
-                                                  BufferParams(1, false, false), 
-                                                  BufferParams(1, false, false), 
-                                                  BufferParams(1, false, false), 
-                                                  BufferParams(1, false, false)))
-      
-        tgtBuffer.suggestName(axiParams.name+"_tgtBuffer")
-        iniBuffer.suggestName(axiParams.name+"_iniBuffer")
-        
-        //Connect to the application clock and reset that we generate
-        val connectPipeLine = InModuleBody{
-          iniBuffer.module.clock := app_clk_scan.asClock
-          iniBuffer.module.reset := app_clk_reset_scan.asAsyncReset
-          
-          tgtBuffer.module.clock := app_clk_scan.asClock
-          tgtBuffer.module.reset := app_clk_reset_scan.asAsyncReset
-        }
-        
-        axi2wl.axi_tgt_node := tgtBuffer.node := tgtIdNode
-        iniIdNode           := iniBuffer.node := axi2wl.axi_ini_node
-        
-      } else {
-      
-        axi2wl.axi_tgt_node := tgtIdNode
-        iniIdNode           := axi2wl.axi_ini_node
-      
-      }
-      
-      
-      val temp = (axi2wl, axiParams, false, iniIdNode, tgtIdNode)
+      //val temp = (axi2wl, axiParams, false, iniIdNode, tgtIdNode)
+      val temp = (axi2wl, axiParams, false)//, iniIdNode, tgtIdNode)
       axi2wlNodes += temp
       
                                                      
@@ -188,8 +227,8 @@ trait CanHaveAXI4Port { this: Wlink =>
       index = index + 0x800
       
       
-      currentLongPacketIndex  += 5
-      currentShortPacketIndex += 20
+      //currentLongPacketIndex  += 5
+      //currentShortPacketIndex += 20
     }
   )
   
@@ -205,23 +244,23 @@ trait CanHaveAXI4Port { this: Wlink =>
   *
   */
 class AXI4ToWlink(
-  shortPacketStart  : Int = 0x8,
-  longPacketStart   : Int = 0x40,
-  address           : Seq[AddressSet],
-  addressSize       : Int = 64,             //Forces the address size internally
-  idBits            : Int = 4,//8,
-  cacheable         : Boolean = true,
-  executable        : Boolean = true,
-  beatBytes         : Int = 4,
-  devName           : Option[String] = None,
-  errors            : Seq[AddressSet] = Nil,
-  wcorrupt          : Boolean = true,
-  baseAddr          : BigInt = 0x0,
-  name              : String = "",
-  dataDepth         : Int = 32,
-  nonDataDepth      : Int = 8,
-  maxXferBytes      : Int = 4096,
-  noRegTest         : Boolean = false
+  val shortPacketStart  : Int = 0x8,
+  val longPacketStart   : Int = 0x40,
+  val address           : Seq[AddressSet],
+  val addressSize       : Int = 64,             //Forces the address size internally
+  val idBits            : Int = 4,//8,
+  val cacheable         : Boolean = true,
+  val executable        : Boolean = true,
+  val beatBytes         : Int = 4,
+  val devName           : Option[String] = None,
+  val errors            : Seq[AddressSet] = Nil,
+  val wcorrupt          : Boolean = true,
+  val baseAddr          : BigInt = 0x0,
+  val fcName            : String = "",
+  val dataDepth         : Int = 32,
+  val nonDataDepth      : Int = 8,
+  val maxXferBytes      : Int = 4096,
+  val noRegTest         : Boolean = false
 )(implicit p: Parameters) extends LazyModule{
   
   // This xbar is for register accesses
@@ -252,7 +291,7 @@ class AXI4ToWlink(
   //val dataDepth = 32
   //val nonDataDepth = 8
   
-  val chPrefix = if(name == "") "" else s"${name}_"
+  val chPrefix = if(fcName == "") "" else s"${fcName}_"
   
   
   // A[W|R] Channels are 25 + ID Length + Addr Size
@@ -323,11 +362,11 @@ class AXI4ToWlink(
                                              ackIdDefault    = shortPacketStart + 18,
                                              nackIdDefault   = shortPacketStart + 19,
                                              noRegTest       = noRegTest))
-  awFC.suggestName(name+"awFC")
-  wFC.suggestName (name+"wFC")
-  bFC.suggestName (name+"bFC")
-  arFC.suggestName(name+"arFC")
-  rFC.suggestName (name+"rFC")
+  awFC.suggestName(fcName+"awFC")
+  wFC.suggestName (fcName+"wFC")
+  bFC.suggestName (fcName+"bFC")
+  arFC.suggestName(fcName+"arFC")
+  rFC.suggestName (fcName+"rFC")
   
   awFC.node   := xbar.node
   wFC.node    := xbar.node

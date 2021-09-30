@@ -1,28 +1,3 @@
-package wav.wlink
-
-import wav.common._
-
-import chisel3._
-import chisel3.util._
-import chisel3.experimental._
-import chisel3.stage.ChiselStage
-
-import freechips.rocketchip.amba._
-import freechips.rocketchip.amba.axi4._
-import freechips.rocketchip.amba.ahb._
-import freechips.rocketchip.amba.apb._
-import freechips.rocketchip.subsystem.BaseSubsystem
-import freechips.rocketchip.subsystem.CrossingWrapper
-import freechips.rocketchip.config.{Parameters, Field, Config}
-import freechips.rocketchip.diplomacy._
-import freechips.rocketchip.regmapper._
-import freechips.rocketchip.tilelink._
-import freechips.rocketchip.util._
-import freechips.rocketchip.unittest._
-import freechips.rocketchip.devices.tilelink._
-
-/*
-.rst_start
 Wlink PHY Wrapper
 ====================
 One significant down fall of traditional Verilog designs is the inability (or extreme difficulty) to 
@@ -52,31 +27,27 @@ are simple in nature and only have a few basic requirements.
 
 
 
-.rst_end
-*/
 
-//.code_block_start scala
-class WlinkPHYTxBundle(val linkDataWidth: Int) extends Bundle{
-  val tx_en               = Input (Bool())
-  val tx_ready            = Output(Bool())
-  val tx_link_data        = Input (UInt(linkDataWidth.W))
-  val tx_data_valid       = Input (Bool())
-  val tx_active_lanes     = Input (UInt(8.W))
-  val tx_link_clk         = Output(Bool())
-}
+.. code-block :: scala
 
-class WlinkPHYRxBundle(val linkDataWidth: Int) extends Bundle{
-  val rx_enter_lp         = Input (Bool())
-  val rx_link_data        = Output(UInt(linkDataWidth.W))
-  val rx_data_valid       = Output(Bool())
-  val rx_active_lanes     = Input (UInt(8.W))
-  val rx_link_clk         = Output(Bool())
-}
-//.code_block_end
+  class WlinkPHYTxBundle(val linkDataWidth: Int) extends Bundle{
+    val tx_en               = Input (Bool())
+    val tx_ready            = Output(Bool())
+    val tx_link_data        = Input (UInt(linkDataWidth.W))
+    val tx_data_valid       = Input (Bool())
+    val tx_active_lanes     = Input (UInt(8.W))
+    val tx_link_clk         = Output(Bool())
+  }
+  
+  class WlinkPHYRxBundle(val linkDataWidth: Int) extends Bundle{
+    val rx_enter_lp         = Input (Bool())
+    val rx_link_data        = Output(UInt(linkDataWidth.W))
+    val rx_data_valid       = Output(Bool())
+    val rx_active_lanes     = Input (UInt(8.W))
+    val rx_link_clk         = Output(Bool())
+  }
 
 
-/*
-.rst_start
 
 ===================== ==========================================================================
 Signal Name           Description
@@ -161,31 +132,28 @@ The reason for these signals being a requirement is simply to have a common hand
 the PHY is instantiated since the ``user`` and ``pad`` bundles are cloned and auto connected at the next level.
 
 
-.rst_end
-*/
 
-//.code_block_start scala
+.. code-block :: scala
 
-abstract class WlinkPHYBase()(implicit p: Parameters) extends LazyModule{
   
-  // APB Identity Node for APB connections
-  // (this produces no logic and is only for connecting at a higher level)
-  val node        = APBIdentityNode()
-  
-  lazy val module = new LazyModuleImp(this) with RequireAsyncReset{
-    val scan      = new WavScanBundle             //DFT Scan (a User can set this as dontTouch if not using)
-    val por_reset = IO(Input (Bool()))            //Power on reset
-    val link_tx   = IO(new WlinkPHYTxBundle(8))   //Link2PHY
-    val link_rx   = IO(new WlinkPHYRxBundle(8))   //Link2PHY
+  abstract class WlinkPHYBase()(implicit p: Parameters) extends LazyModule{
     
-    val user      = IO(new Bundle{})              //User Customizable
-    val pad       = IO(new Bundle{})              //PAD Customizable
+    // APB Identity Node for APB connections
+    // (this produces no logic and is only for connecting at a higher level)
+    val node        = APBIdentityNode()
+    
+    lazy val module = new LazyModuleImp(this) with RequireAsyncReset{
+      val scan      = new WavScanBundle             //DFT Scan (a User can set this as dontTouch if not using)
+      val por_reset = IO(Input (Bool()))            //Power on reset
+      val link_tx   = IO(new WlinkPHYTxBundle(8))   //Link2PHY
+      val link_rx   = IO(new WlinkPHYRxBundle(8))   //Link2PHY
+      
+      val user      = IO(new Bundle{})              //User Customizable
+      val pad       = IO(new Bundle{})              //PAD Customizable
+    }
   }
-}
-//.code_block_end
 
-/*
-.rst_start
+
 WlinkPHYBaseParams
 -------------------
 The ``WlinkPHYBaseParams`` are the base class for WlinkPHY Parameters and contain the minimum subset of parameters
@@ -209,27 +177,21 @@ phyVersionStr         | String value to use in the phyVersion register descripti
 
 
 
-.rst_end
-*/
 
-//.code_block_start scala
-abstract class WlinkPHYBaseParams{
-  def phyType       : (Parameters) => WlinkPHYBase 
-  def numTxLanes    : Int
-  def numRxLanes    : Int
-  def baseAddr      : BigInt
-  def phyDataWidth  : Int
-  
-  def phyVersion    : UInt
-  def phyVersionStr : String
-}
-//.code_block_end
+.. code-block :: scala
 
-/*******************************************
-*   GPIO Example
-********************************************/ 
-/*
-.rst_start
+  abstract class WlinkPHYBaseParams{
+    def phyType       : (Parameters) => WlinkPHYBase 
+    def numTxLanes    : Int
+    def numRxLanes    : Int
+    def baseAddr      : BigInt
+    def phyDataWidth  : Int
+    
+    def phyVersion    : UInt
+    def phyVersionStr : String
+  }
+
+
 
 .. note ::
   
@@ -248,17 +210,14 @@ this signal is specific to this phy type and isn't a pad signal, this becomes a 
 
 Here I have created a ``WlinkGPIOPHYUserBundle``. In this case, it only contains the ``hsclk`` signal that is needed.
 
-.rst_end
-*/
 
-//.code_block_start scala
-class WlinkGPIOPHYUserBundle extends Bundle{
-  val hsclk   = Input (Bool())
-}
-//.code_block_end
+.. code-block :: scala
 
-/*
-.rst_start
+  class WlinkGPIOPHYUserBundle extends Bundle{
+    val hsclk   = Input (Bool())
+  }
+
+
 
 The user bundle is not limited to just individual signals. You can include sub-Bundles inside, giving you a cleaner interface. Here
 is a possible example where I have a boundary scan bundle and a refclk in my user bundle.
@@ -286,13 +245,7 @@ is a possible example where I have a boundary scan bundle and a refclk in my use
   
     val user      = IO(new Bundle{})
     
-.rst_end
-*/
 
-
-
-/*
-.rst_start
 
 The ``WlinkPHYGPIOExampleParams`` show an example of the types of parameters a user may create for their respective PHY. We are required
 to define the values presented in ``WlinkPHYBaseParams`` but we also have the ability to add custom parameters for our own PHY 
@@ -306,27 +259,23 @@ gives the LVDS cell or vendor.
 
 Here is what the ``WlinkPHYGPIOExampleParams`` look like when implemented.
 
-.rst_end
-*/
 
-//.code_block_start scala
-case class WlinkPHYGPIOExampleParams(
-  phyType       : (Parameters) => WlinkGPIOPHY = (p: Parameters) => new WlinkGPIOPHY()(p),
-  numTxLanes    : Int = 1,
-  numRxLanes    : Int = 1,
-  baseAddr      : BigInt = 0x0,
-  phyDataWidth  : Int = 16,
-  phyVersion    : UInt = 1.U,
-  phyVersionStr : String = "GPIO",
-  
-  someCustomParam: String = "Making a GPIO PHY"
-  
-) extends WlinkPHYBaseParams
-//.code_block_end
+.. code-block :: scala
+
+  case class WlinkPHYGPIOExampleParams(
+    phyType       : (Parameters) => WlinkGPIOPHY = (p: Parameters) => new WlinkGPIOPHY()(p),
+    numTxLanes    : Int = 1,
+    numRxLanes    : Int = 1,
+    baseAddr      : BigInt = 0x0,
+    phyDataWidth  : Int = 16,
+    phyVersion    : UInt = 1.U,
+    phyVersionStr : String = "GPIO",
+    
+    someCustomParam: String = "Making a GPIO PHY"
+    
+  ) extends WlinkPHYBaseParams
 
 
-/*
-.rst_start
 
 Whoa, what is ``phyType`` you have shown me? This is a scala call-by-name parameter. If you're new to scala or Chisel, come back to this
 after some time. For now, just know that you define the Module class to call this way. If you create your own custom version here
@@ -342,62 +291,59 @@ is what you would want to replace
 Below is an example for the ``WavD2DGpio`` version with explainations on each section of the code
 
 
-.rst_end
-*/
-//.code_block_start scala
-class WlinkGPIOPHY()(implicit p: Parameters) extends WlinkPHYBase{
-  
-  // Get the params from the CDE since we will use them in the 
-  // instantiation
-  val params  : WlinkPHYGPIOExampleParams = p(WlinkParamsKey).phyParams.asInstanceOf[WlinkPHYGPIOExampleParams]
-  
-  // "Instantiate" the WavD2DGpio Module
-  // Here we use the term "instantiate" loosely as this is a LazyModule
-  // and we don't have access to the IOs at this level.
-  val gpio    = LazyModule(new WavD2DGpio(numTxLanes=params.numTxLanes, 
-                                          numRxLanes=params.numRxLanes,
-                                          baseAddr=params.baseAddr, 
-                                          dataWidth=params.phyDataWidth)(p))
-  
-  // Connect the APB Identity Node to our APB node in the gpio cell
-  // This connection simply draws a node connection.
-  gpio.node   := node
-  
-  // Printing our custom parameter. This is just for show
-  println(params.someCustomParam)
-  
-  // Creating the actual module implementation of the ``WlinkGPIOPHY``
-  override lazy val module = new LazyModuleImp(this) with RequireAsyncReset{
+
+.. code-block :: scala
+
+  class WlinkGPIOPHY()(implicit p: Parameters) extends WlinkPHYBase{
     
-    //  Defining our bundles
-    val scan      = IO(new WavScanBundle)
-    val por_reset = IO(Input (Bool()))
-    val link_tx   = IO(new WlinkPHYTxBundle(params.numTxLanes * params.phyDataWidth))
-    val link_rx   = IO(new WlinkPHYRxBundle(params.numRxLanes * params.phyDataWidth))
+    // Get the params from the CDE since we will use them in the 
+    // instantiation
+    val params  : WlinkPHYGPIOExampleParams = p(WlinkParamsKey).phyParams.asInstanceOf[WlinkPHYGPIOExampleParams]
     
-    // Notice how we include our own BumpBundle?
-    val pad       = IO(new WavD2DGpioBumpBundle(params.numTxLanes, params.numRxLanes))
+    // "Instantiate" the WavD2DGpio Module
+    // Here we use the term "instantiate" loosely as this is a LazyModule
+    // and we don't have access to the IOs at this level.
+    val gpio    = LazyModule(new WavD2DGpio(numTxLanes=params.numTxLanes, 
+                                            numRxLanes=params.numRxLanes,
+                                            baseAddr=params.baseAddr, 
+                                            dataWidth=params.phyDataWidth)(p))
     
-    // And we do the same for the user bundle
-    val user      = IO(new WlinkGPIOPHYUserBundle)    
+    // Connect the APB Identity Node to our APB node in the gpio cell
+    // This connection simply draws a node connection.
+    gpio.node   := node
     
-    // Now we connect up everything to the gpio instance
-    // Since the WavD2DGpio is a LazyModule, don't forget that you need to
-    // reference the gpio.module!
-    gpio.module.io.por_reset   := por_reset
-    gpio.module.io.hsclk       := user.hsclk
-    gpio.module.io.link_tx     <> link_tx
-    gpio.module.io.link_rx     <> link_rx
-    gpio.module.io.pad         <> pad
-    gpio.module.io.scan.connectScan(scan)
+    // Printing our custom parameter. This is just for show
+    println(params.someCustomParam)
     
+    // Creating the actual module implementation of the ``WlinkGPIOPHY``
+    override lazy val module = new LazyModuleImp(this) with RequireAsyncReset{
+      
+      //  Defining our bundles
+      val scan      = IO(new WavScanBundle)
+      val por_reset = IO(Input (Bool()))
+      val link_tx   = IO(new WlinkPHYTxBundle(params.numTxLanes * params.phyDataWidth))
+      val link_rx   = IO(new WlinkPHYRxBundle(params.numRxLanes * params.phyDataWidth))
+      
+      // Notice how we include our own BumpBundle?
+      val pad       = IO(new WavD2DGpioBumpBundle(params.numTxLanes, params.numRxLanes))
+      
+      // And we do the same for the user bundle
+      val user      = IO(new WlinkGPIOPHYUserBundle)    
+      
+      // Now we connect up everything to the gpio instance
+      // Since the WavD2DGpio is a LazyModule, don't forget that you need to
+      // reference the gpio.module!
+      gpio.module.io.por_reset   := por_reset
+      gpio.module.io.hsclk       := user.hsclk
+      gpio.module.io.link_tx     <> link_tx
+      gpio.module.io.link_rx     <> link_rx
+      gpio.module.io.pad         <> pad
+      gpio.module.io.scan.connectScan(scan)
+      
+    }
   }
-}
-//.code_block_end
 
 
-/*
-.rst_start
 
 Wow, that seems like a lot of setup just to instantiate a cell!
 
@@ -413,5 +359,10 @@ thing about Chisel is that it does support Verilog integration with `BlackBoxes 
 
 The only thing you would need to create is the ``LazyModule`` wrapper that we have shown above.
 
-.rst_end
-*/
+
+
+
+  
+.. generated using get_rst.py by sbridges at September/30/2021  07:54:32
+
+
