@@ -27,7 +27,7 @@ Getting Started
   
   git clone <this repo>
   cd wav-wlink-hw
-  git submodule update --init
+  git submodule update --init --recursive 
 
 Create your first Wlink Design!
 --------------------------------
