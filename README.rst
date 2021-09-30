@@ -10,8 +10,14 @@ the need to change RTL for the controller infrastructure
 Project Requirements
 ---------------------
 
+* make
+* java
 * sbt
 * icarus verilog (if running simulations)
+  
+  * Please use version 11.0 or later
+
+*gtkwave with compression packages for viewing waves
 
 
 Getting Started
@@ -25,6 +31,8 @@ Getting Started
 
 Create your first Wlink Design!
 --------------------------------
+If this is your first run, the initial build may take 5-10 minutes depending on your 
+CPU setup.
 
 ::
   
@@ -43,7 +51,13 @@ Run a simulation!
   make testharness
   
 Will generate the WlinkSimpleTestHarness that instantiates two Wlink instances back to
-back. The test harness will generate some random AXI reads/writes and compare the data
+back. The test harness will generate some random AXI reads/writes and compare the data.
+You can run the simple testbench by doing the following:
+
+::
+
+  cd verif/
+  ./run.sh -o ../wav.wlink.AXI32bit1LaneWlinkTestConfig/
 
 
 See an issue? Have a question?
