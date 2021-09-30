@@ -6,6 +6,11 @@ implementations. Wlink is highly configurable, allowing users to communicate bet
 future on-chip application protocols. Wlink allows user to define implementation specific physical layers without
 the need to change RTL for the controller infrastructure
 
+Documentation
+---------------
+https://wlink.readthedocs.io/en/latest/
+
+
 
 Project Requirements
 ---------------------
