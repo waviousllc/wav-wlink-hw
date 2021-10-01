@@ -14,9 +14,9 @@ jobs:
     runs-on: ubuntu-20.04
     steps:
       - name: Checkout
-        uses: actions/checkout@v2
-      - name: checkout submodules
-	run:  git submodule update --init --recursive
+        uses: actions/checkout@v1
+        with:
+	  submodules: recursive
       - name: Install verilator dependencies
         run:  sudo apt-get install -y git make autoconf g++ flex bison libfl2 libfl-dev
       - name: Install verilator
