@@ -18,35 +18,46 @@ class WlinkTestHarnessTests extends AnyFlatSpec with ChiselScalatestTester with 
   
   val annos = Seq(VerilatorBackendAnnotation, WriteVcdAnnotation)
   
+  val axiBeatBytesList = List(4,8,16,32,64,128)  
+  val axiSizeList= List(x"1000", x"10_0000", x"8000_0000", x"9_1452_1000")
   
+  for(txLanes <- 1 to 8; 
+      rxLanes <- 1 to 8; 
+      axiBeatBytes <- axiBeatBytesList;
+      axiSize      <- axiSizeList){
   
-  it should "test something" in {
-    implicit val p: Parameters = new AXI64bit1LaneWlinkTestConfig
-    test(LazyModule(new WlinkSimpleTestHarness()(p)).module).withAnnotations(annos) { dut =>
-    
-      var count = 0
-      dut.hsclk.poke(true.B)
-      
-      for(i <- 0 until 10){
-        dut.clock.step()
-        dut.hsclk.poke(false.B)
-        dut.clock.step()
-        dut.hsclk.poke(true.B)
+    it should s"test ${txLanes}txLanes ${rxLanes}rxLanes with ${axiBeatBytes} axiBeatBytes with ${axiSize.toString(16)} as axiSize" in {
+
+      implicit val p: Parameters = new AXIWlinkTestRegressConfig(numTxLanes = txLanes,
+                                                                 numRxLanes = rxLanes,
+								 beatBytes  = axiBeatBytes )
+
+      test(LazyModule(new WlinkSimpleTestHarness()(p)).module).withAnnotations(annos) { dut =>
+
+	var count = 0
+	dut.hsclk.poke(true.B)
+
+	for(i <- 0 until 10){
+          dut.clock.step()
+          dut.hsclk.poke(false.B)
+          dut.clock.step()
+          dut.hsclk.poke(true.B)
+	}
+
+
+	while((dut.finished.peek().litValue() == 0) && (count < 999999)){
+          dut.clock.step()
+          dut.hsclk.poke(false.B)
+          dut.clock.step()
+          dut.hsclk.poke(true.B)
+          count = count + 1
+	}
+
+	if(count > 999999) println("counter expired!")
+
+	dut.finished.peek().litValue() should be (1)
+	dut.error.peek().litValue() should be (0)
       }
-      
-      
-      while((dut.finished.peek().litValue() == 0) && (count < 999999)){
-        dut.clock.step()
-        dut.hsclk.poke(false.B)
-        dut.clock.step()
-        dut.hsclk.poke(true.B)
-        count = count + 1
-      }
-            
-      if(count < 999999) println("counter expired!")
-      
-      dut.finished.peek().litValue() should be (1)
-      dut.error.peek().litValue() should be (0)
     }
   }
   

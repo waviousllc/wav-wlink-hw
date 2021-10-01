@@ -67,9 +67,7 @@ class WlinkBase()(implicit p: Parameters) extends LazyModule with WlinkApplicati
   val numRxLanes    = params.phyParams.numRxLanes
   
   var crcErrIndex             = 0
-  
-  println(s"${p(WlinkParamsKey)}")
-  
+    
   val device = new SimpleDevice("wavwlink", Seq("wavious,wlink"))
   val node = WavAPBRegisterNode(
     address = AddressSet.misaligned(wlinkBaseAddr+0x30000, 0x100),      ///FIX THIS 

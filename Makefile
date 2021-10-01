@@ -6,7 +6,7 @@ OUTPUTDIR	?= $(CONFIG)
 TEST_CONFIG	?= wav.wlink.AXI32bit1LaneWlinkTestConfig
 TEST_OUTPUTDIR	?= $(TEST_CONFIG)
 
-
+export SBT_OPTS = -Xmx8G -Xss8M -XX:MaxPermSize=256M
 
 help:
 	@echo "Wlink Generator Makefile"
@@ -34,3 +34,6 @@ wlink:
 testharness: 	
 	@echo "Making TestHarness with TEST_CONFIG: $(TEST_CONFIG) and saving to $(TEST_OUTPUTDIR)"
 	sbt 'runMain wav.wlink.WlinkTHGen -o $(TEST_OUTPUTDIR) -c $(TEST_CONFIG)'
+
+regression:
+	sbt test
