@@ -18,13 +18,12 @@ class WlinkTestHarnessTests extends AnyFlatSpec with ChiselScalatestTester with 
   
   val annos = Seq(VerilatorBackendAnnotation, WriteVcdAnnotation)
   
+  
+  
   it should "test something" in {
     implicit val p: Parameters = new AXI64bit1LaneWlinkTestConfig
     test(LazyModule(new WlinkSimpleTestHarness()(p)).module).withAnnotations(annos) { dut =>
-      println("running test")
-      //dut.reset.asBool.poke(true.B)
-      
-      
+    
       var count = 0
       dut.hsclk.poke(true.B)
       
@@ -36,9 +35,6 @@ class WlinkTestHarnessTests extends AnyFlatSpec with ChiselScalatestTester with 
       }
       
       
-      //dut.reset.poke(false.B)
-      
-      println("inwhile")
       while((dut.finished.peek().litValue() == 0) && (count < 999999)){
         dut.clock.step()
         dut.hsclk.poke(false.B)
@@ -46,9 +42,7 @@ class WlinkTestHarnessTests extends AnyFlatSpec with ChiselScalatestTester with 
         dut.hsclk.poke(true.B)
         count = count + 1
       }
-      
-      println("done while")
-      
+            
       if(count < 999999) println("counter expired!")
       
       dut.finished.peek().litValue() should be (1)

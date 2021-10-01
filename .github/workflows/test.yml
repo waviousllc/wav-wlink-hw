@@ -1,0 +1,27 @@
+name: Continous Integration
+
+on:
+  pull_request:
+  push:
+    branches:
+      - master
+      - dev
+ 
+
+jobs:
+  verilator:
+    name:  verilator regressions
+    runs-on: ubuntu-20.04
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v2
+      - name: Install verilator dependencies
+        run:  sudo apt-get install -y git make autoconf g++ flex bison libfl2 libfl-dev
+      - name: Install verilator
+        run:  sudo apt-get install -y verilator
+      - name: Setup Scala
+        uses: olafurpg/setup-scala@v10
+        with:
+          java-version: adopt@1.8
+      - name: Test
+        run:  sbt test
