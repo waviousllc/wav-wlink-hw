@@ -15,8 +15,7 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v2
-	with:
-	  submodules: recursive
+	run:  git submodule update --init --recursive
       - name: Install verilator dependencies
         run:  sudo apt-get install -y git make autoconf g++ flex bison libfl2 libfl-dev
       - name: Install verilator
