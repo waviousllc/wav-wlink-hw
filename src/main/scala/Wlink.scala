@@ -33,6 +33,8 @@ class WithWlinkOnlyGen extends Config ((site, here, up) => {
 
 case class WlinkParams(
   phyParams         : WlinkPHYBaseParams,
+  txValidLaneSeq    : Seq[Boolean] = Seq.fill(256){true},
+  rxValidLaneSeq    : Seq[Boolean] = Seq.fill(256){true},
   axiFCOffset       : BigInt = 0x200000,                          //Starting Offset from wlink base addr of all AXI conversion nodes
   axiParams         : Option[Seq[WlinkAxiParams]] = None,
   apbTgtParams      : Option[Seq[WlinkApbTgtParams]] = None,
@@ -87,8 +89,8 @@ class WlinkBase()(implicit p: Parameters) extends LazyModule with WlinkApplicati
   val rxrouter= LazyModule(new WlinkRxRouter)
   val rxpstate= LazyModule(new WlinkRxPstateCtrl)
   
-  val lltx    = LazyModule(new WlinkTxLinkLayer(numTxLanes, params.phyParams.phyDataWidth))
-  val llrx    = LazyModule(new WlinkRxLinkLayer(numRxLanes, params.phyParams.phyDataWidth, validLaneSeq=Seq.fill(numRxLanes){true}))
+  val lltx    = LazyModule(new WlinkTxLinkLayer(numTxLanes, params.phyParams.phyDataWidth, validLaneSeq=params.txValidLaneSeq))
+  val llrx    = LazyModule(new WlinkRxLinkLayer(numRxLanes, params.phyParams.phyDataWidth, validLaneSeq=params.rxValidLaneSeq))
   
   if(p(WlinkOnlyGen)){
     val ApbPort = APBMasterNode(
