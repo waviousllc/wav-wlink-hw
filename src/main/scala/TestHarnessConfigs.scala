@@ -35,6 +35,21 @@ class WithWlinkSimpleAXITestConfig(
 
 
 
+class AXIWlinkTestRegressConfig(
+  numTxLanes  : Int = 1,
+  numRxLanes  : Int = 1,
+  size        : BigInt = 0x100000,
+  beatBytes   : Int = 4,
+  idBits      : Int = 4,
+) extends Config(
+  new WithWlinkSimpleAXITestConfig(
+    numTxLanes = numTxLanes, 
+    numRxLanes = numRxLanes,
+    beatBytes  = beatBytes) ++
+  new BaseWlinkTestConfig
+)
+
+
 
 class BaseWlinkTestConfig extends Config(
   new WithWavComponentPrefix("testing")
@@ -102,5 +117,13 @@ class AXI256bit5LaneWlinkTestConfig extends Config(
     numTxLanes = 5, 
     numRxLanes = 5,
     beatBytes  = 32) ++
+  new BaseWlinkTestConfig
+)
+
+class AXI128bit6LaneWlinkTestConfig extends Config(
+  new WithWlinkSimpleAXITestConfig(
+    numTxLanes = 6, 
+    numRxLanes = 6,
+    beatBytes  = 16) ++
   new BaseWlinkTestConfig
 )

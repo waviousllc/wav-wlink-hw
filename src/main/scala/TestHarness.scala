@@ -85,9 +85,11 @@ class WlinkSimpleTestHarness()(implicit p: Parameters) extends LazyModule{
   
   val wlink_left  = LazyModule(new Wlink()(p))
   
-  // Need to change the baseAddr for the APB fanout
+  // Need to change the baseAddr for the APB fanout and make sure that lanes are correct since they are mirrored in this case
   val pright      = p.alterPartial({
-    case WlinkParamsKey => {p(WlinkParamsKey).copy(phyParams = p(WlinkParamsKey).phyParams.asInstanceOf[WlinkPHYGPIOExampleParams].copy(baseAddr = 0x10000000)) }
+    case WlinkParamsKey => {p(WlinkParamsKey).copy(phyParams = p(WlinkParamsKey).phyParams.asInstanceOf[WlinkPHYGPIOExampleParams].copy(baseAddr = 0x10000000, 
+                    numTxLanes=p(WlinkParamsKey).phyParams.numRxLanes,
+		    numRxLanes=p(WlinkParamsKey).phyParams.numTxLanes)) }
   })
   val wlink_right = LazyModule(new Wlink()(pright))
   

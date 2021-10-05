@@ -67,9 +67,7 @@ class WlinkBase()(implicit p: Parameters) extends LazyModule with WlinkApplicati
   val numRxLanes    = params.phyParams.numRxLanes
   
   var crcErrIndex             = 0
-  
-  println(s"${p(WlinkParamsKey)}")
-  
+    
   val device = new SimpleDevice("wavwlink", Seq("wavious,wlink"))
   val node = WavAPBRegisterNode(
     address = AddressSet.misaligned(wlinkBaseAddr+0x30000, 0x100),      ///FIX THIS 
@@ -265,7 +263,7 @@ class WlinkBase()(implicit p: Parameters) extends LazyModule with WlinkApplicati
       WavSWReg(0x8,  "EnableReset", "",
         WavRW(swi_enable,       true.B,                       "enable",           "Enable for application logic"),
         WavRW(swi_lltx_enable,  true.B,                       "lltx_enable",      "Enable for LL TX logic"),
-        WavRW(swi_llrx_enable,  true.B,                       "lltx_enable",      "Enable for LL RX logic"),
+        WavRW(swi_llrx_enable,  true.B,                       "llrx_enable",      "Enable for LL RX logic"),
         WavRW(swi_swreset,      false.B,                      "swreset",          "Software reset for application logic"),
         WavRW(swi_short_packet_max,       "h7f".U,            "short_packet_max", ""),
         WavRW(swi_preq_data_id,           "h2".U,             "preq_data_id",     "")),
