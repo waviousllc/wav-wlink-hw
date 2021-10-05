@@ -119,3 +119,11 @@ class AXI256bit5LaneWlinkTestConfig extends Config(
     beatBytes  = 32) ++
   new BaseWlinkTestConfig
 )
+
+class AXI128bit6LaneWlinkTestConfig extends Config(
+  new WithWlinkSimpleAXITestConfig(
+    numTxLanes = 6, 
+    numRxLanes = 6,
+    beatBytes  = 16) ++
+  new BaseWlinkTestConfig
+)

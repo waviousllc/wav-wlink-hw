@@ -667,6 +667,8 @@ class WlinkGenericFCSM(
     )
     
     println(s"Default Packet numbers for ${channelName}")
+    println(s"  Tx WordCount : ${txWlinkDataWidth/8}")
+    println(s"  Rx WordCount : ${rxWlinkDataWidth/8}")
     println(s"  Credit ID    : ${crIdDefault}")
     println(s"  Credit Ack ID: ${crackIdDefault}")
     println(s"  Ack ID       : ${ackIdDefault}")

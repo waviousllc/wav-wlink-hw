@@ -609,7 +609,11 @@ class WlinkRxLinkLayer(
     
     //val numBytes      = (width/8.0).ceil.toInt + 6
     val numBytes      = (outputWidth/8.0).ceil.toInt + 6
-    val ll_byte_index = RegInit(VecInit(Seq.fill(numBytes)(0.U(8.W)))) //RegInit(Vec(numBytes, UInt(8.W)))
+    //val ll_byte_index = RegInit(VecInit(Seq.fill(numBytes)(0.U(8.W)))) 
+    
+    val numBytesModOffset = (numBytes / (numLanes * (phyDataWidth/8.0))).ceil.toInt * (numLanes * (phyDataWidth/8))
+    println(s"numBytesModOffset: ${numBytesModOffset}")
+    val ll_byte_index = RegInit(VecInit(Seq.fill(numBytesModOffset)(0.U(8.W)))) 
     
     
     val active_lanes              = io.active_lanes
@@ -661,6 +665,7 @@ class WlinkRxLinkLayer(
     def updateAppData: Unit = {
       //for(i <- 0 until (numLanes*phyDataWidth/8) ){
       for(i <- (numLanes*phyDataWidth/8)-1 to 0 by -1){
+      	//val byte_count_offset = byte_count + i.asUInt
         ll_byte_index(byte_count + i.asUInt)    := link_data_byte_index(i)
       }
     }    
