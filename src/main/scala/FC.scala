@@ -669,11 +669,11 @@ class WlinkGenericFCSM(
     println(s"Default Packet numbers for ${channelName}")
     println(s"  Tx WordCount : ${txWlinkDataWidth/8}")
     println(s"  Rx WordCount : ${rxWlinkDataWidth/8}")
-    println(s"  Credit ID    : ${crIdDefault}")
-    println(s"  Credit Ack ID: ${crackIdDefault}")
-    println(s"  Ack ID       : ${ackIdDefault}")
-    println(s"  Nack ID      : ${nackIdDefault}")
-    println(s"  Data ID      : ${dataIdDefault}")
+    println(s"  Credit ID    : 0x${crIdDefault.toHexString}")
+    println(s"  Credit Ack ID: 0x${crackIdDefault.toHexString}")
+    println(s"  Ack ID       : 0x${ackIdDefault.toHexString}")
+    println(s"  Nack ID      : 0x${nackIdDefault.toHexString}")
+    println(s"  Data ID      : 0x${dataIdDefault.toHexString}")
   }
 }
 
