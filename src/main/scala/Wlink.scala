@@ -156,6 +156,7 @@ class WlinkBase()(implicit p: Parameters) extends LazyModule with WlinkApplicati
     val swi_sb_reset_in_muxed             = Wire(Bool())
     val swi_lltx_enable                   = Wire(Bool())
     val swi_llrx_enable                   = Wire(Bool())
+    val swi_disable_crc                   = Wire(Bool())
     
     
     
@@ -177,6 +178,7 @@ class WlinkBase()(implicit p: Parameters) extends LazyModule with WlinkApplicati
     
     lltx.module.io.active_lanes           := active_tx_lanes
     lltx.module.io.swi_short_packet_max   := swi_short_packet_max
+    lltx.module.io.swi_disable_crc        := swi_disable_crc
     phy.module.link_tx.tx_active_lanes    := active_tx_lanes
     
     
@@ -196,6 +198,7 @@ class WlinkBase()(implicit p: Parameters) extends LazyModule with WlinkApplicati
     llrx.module.io.enable                 := swi_llrx_enable
     llrx.module.io.active_lanes           := active_rx_lanes
     llrx.module.io.swi_short_packet_max   := swi_short_packet_max
+    llrx.module.io.swi_disable_crc        := swi_disable_crc
     
     llrx.module.io.link_data              := phy.module.link_rx.rx_link_data
     llrx.module.io.ll_rx_valid            := phy.module.link_rx.rx_data_valid
@@ -266,9 +269,10 @@ class WlinkBase()(implicit p: Parameters) extends LazyModule with WlinkApplicati
         WavRW(swi_llrx_enable,  true.B,                       "llrx_enable",      "Enable for LL RX logic"),
         WavRW(swi_swreset,      false.B,                      "swreset",          "Software reset for application logic"),
         WavRW(swi_short_packet_max,       "h7f".U,            "short_packet_max", ""),
-        WavRW(swi_preq_data_id,           "h2".U,             "preq_data_id",     "")),
+        WavRW(swi_preq_data_id,           "h2".U,             "preq_data_id",     ""),
+        WavRW(swi_disable_crc,            false.B,            "disable_crc",      "Disables the CRC in the link layer. NOTE: If disabled, each application layer should also be disabled")),
         
-      WavSWReg(0x10,  "ActiveTxLanes", "Lane Control",
+      WavSWReg(0x10,  "ActiveLanes", "Lane Control",
         WavRW(active_tx_lanes,     (numTxLanes-1).asUInt,    "active_tx_lanes",   "Number of TX lanes active"),
         WavRW(active_rx_lanes,     (numRxLanes-1).asUInt,    "active_rx_lanes",   "Number of RX lanes active")),
       
@@ -308,9 +312,9 @@ trait WlinkApplicationLayerChecks { this: WlinkBase =>
   val idList = scala.collection.mutable.Map[Int, String]()
   
   def addId(id: Int, block: String): Unit = {
-    require(!(idList contains id), s"Data ID ${id} is already used for ${idList(id)}!!")
+    require(!(idList contains id), s"Data ID ${id} to be used for ${block} is already used for ${idList(id)}!!")
     idList(id) = block
-    println(s"${block}: 0x${id.toHexString}")
+    //println(s"${block}: 0x${id.toHexString}")
   }
   
 }

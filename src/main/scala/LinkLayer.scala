@@ -405,6 +405,7 @@ class WlinkTxLinkLayer(
       val swi_err_inj_data_id   = Input (UInt(8.W))
       val swi_err_inj_byte      = Input (UInt(8.W))
       val swi_err_inj_bit       = Input (UInt(3.W))
+      val swi_disable_crc       = Input (Bool())
       
       
       val ll_tx_valid           = Input (Bool())
@@ -417,7 +418,6 @@ class WlinkTxLinkLayer(
     val (blah, edgesIn) = node.in.unzip
     val inputWidth = edgesIn(0).source.width
     
-    //val numBytes      = (width/8.0).ceil.toInt + 6
     val numBytes      = (inputWidth/8.0).ceil.toInt + 6
     val ll_byte_index = Wire(Vec(numBytes, UInt(8.W)))
     
@@ -488,7 +488,7 @@ class WlinkTxLinkLayer(
     val bytesPerCycle     = ((active_lanes + 1.U) << 1)                               //UInt value of number of bytes per cycle
     def incrByteCount     : UInt = {byte_count + bytesPerCycle}
     val setBytecount      = bytesPerCycle
-    val topIndex          = Mux(is_short_pkt, 4.U, ll.word_count + 6.U)               //TODO: Add CRC option here
+    val topIndex          = Mux(is_short_pkt, 4.U, Mux(io.swi_disable_crc, ll.word_count + 4.U, ll.word_count + 6.U))
     val endOfPacket       = incrByteCount >= topIndex
     
     
@@ -588,6 +588,7 @@ class WlinkRxLinkLayer(
       val active_lanes          = Input (UInt(8.W))
       
       val swi_ecc_corrupt_errs  = Input (Bool())
+      val swi_disable_crc       = Input (Bool())
       val ecc_corrected         = Output(Bool())
       val ecc_corrupted         = Output(Bool())
       val ll_rx_valid           = Input (Bool())
@@ -612,7 +613,6 @@ class WlinkRxLinkLayer(
     //val ll_byte_index = RegInit(VecInit(Seq.fill(numBytes)(0.U(8.W)))) 
     
     val numBytesModOffset = (numBytes / (numLanes * (phyDataWidth/8.0))).ceil.toInt * (numLanes * (phyDataWidth/8))
-    println(s"numBytesModOffset: ${numBytesModOffset}")
     val ll_byte_index = RegInit(VecInit(Seq.fill(numBytesModOffset)(0.U(8.W)))) 
     
     
@@ -652,7 +652,7 @@ class WlinkRxLinkLayer(
     val bytesPerCycle     = ((active_lanes + 1.U) << 1)                               //UInt value of number of bytes per cycle
     def incrByteCount     : UInt = {byte_count + bytesPerCycle}
     val setBytecount      = bytesPerCycle
-    val topIndex          = word_count_in + 6.U               //TODO: Add CRC option here || How do we handle single cycle?
+    val topIndex          = Mux(io.swi_disable_crc, word_count_in + 4.U, word_count_in + 6.U)               //TODO: How do we handle single cycle?
     val endOfPacket       = incrByteCount >= topIndex
     
     
@@ -949,224 +949,224 @@ class WlinkEccSyndrome extends MultiIOModule{
   
 }
 
-//=====================================================
-// Old Slink Version
-//=====================================================
-class WlinkLLTx(val numLanes: Int, val phyDataWidth: Int, val width: Int)(implicit p: Parameters) extends LazyModule{
-  val node = new WlinkTxSinkNode(Seq(WlinkLLSinkTxPortParameters(sinks = Seq(WlinkLLSinkTxParameters(Seq(0x0), "WlinkLLTx")), width = width)))
-  
-  lazy val module = new LazyModuleImp(this) with RequireAsyncReset{
-    val io = IO(new Bundle{
-      val clk                   = Input (Bool())
-      val reset                 = Input (Bool())
-      val enable                = Input (Bool())
-      val swi_short_packet_max  = Input (UInt(8.W))
-      
-      val active_lanes          = Input (UInt(3.W))
-      //val sds_sent              = Input (Bool())
-      
-      val ll_tx_valid           = Input (Bool())
-      val link_data             = Output(UInt((numLanes*phyDataWidth).W))
-      val link_idle             = Output(Bool())
-      val ll_tx_state           = Output(UInt(4.W))
-    })
-    
-    val ll_app = node.in.head._1
-    
-    val ll_tx = Module(new slink_ll_tx(numLanes, phyDataWidth, width))
-    ll_tx.io.clk                  := io.clk
-    ll_tx.io.reset                := io.reset
-    ll_tx.io.enable               := io.enable
-    ll_tx.io.swi_short_packet_max := io.swi_short_packet_max
-    ll_tx.io.active_lanes         := io.active_lanes
-    ll_tx.io.sds_sent             := true.B//io.sds_sent      //SEE IF THIS WORKS
-    
-    ll_tx.io.delimeter  := 0.U //TEMP!!!
-    
-    ll_tx.io.sop        := ll_app.sop
-    ll_tx.io.data_id    := ll_app.data_id
-    ll_tx.io.word_count := ll_app.word_count
-    ll_tx.io.app_data   := ll_app.data
-    ll_app.advance      := ll_tx.io.advance
-    
-    ll_tx.io.crc        := ll_app.crc
-    
-    ll_tx.io.valid      := false.B //not used
-    
-    ll_tx.io.ll_tx_valid  := io.ll_tx_valid
-    io.link_data          := ll_tx.io.link_data
-    io.link_idle          := ll_tx.io.link_idle
-    io.ll_tx_state        := ll_tx.io.ll_tx_state
-    
-  }  
-}
-
-
-class slink_ll_tx(
-  numLanes      : Int,
-  phyDataWidth  : Int,
-  appDataWidth  : Int
-  
-) extends BlackBox (Map(
-  "NUM_LANES"       -> numLanes,
-  "DATA_WIDTH"      -> phyDataWidth,
-  "APP_DATA_WIDTH"  -> appDataWidth
-)) with HasBlackBoxResource{
-
-  val io = IO(new Bundle{
-    val clk         = Input (Bool())
-    val reset       = Input (Bool())
-    val enable      = Input (Bool())
-    
-    val swi_short_packet_max  = Input (UInt(8.W))
-    
-    val sop         = Input (Bool())
-    val data_id     = Input (UInt(8.W))
-    val word_count  = Input (UInt(16.W))
-    val app_data    = Input (UInt(appDataWidth.W))
-    val advance     = Output(Bool())
-    val crc         = Input (UInt(16.W))
-    val valid       = Input (Bool())
-    
-    val delimeter   = Input (UInt(2.W))
-    
-    val active_lanes= Input (UInt(3.W))
-    val sds_sent    = Input (Bool())
-    
-    val ll_tx_valid = Input (Bool())
-    val link_data   = Output(UInt((numLanes*phyDataWidth).W))
-    val link_idle   = Output(Bool())
-    val ll_tx_state = Output(UInt(4.W))
-  })
-  
-  addResource("/vsrc/slink_ll_tx.v")
-  addResource("/vsrc/slink_ecc_syndrome.v")
-}
-
-
-class WlinkLLRx(val numLanes: Int, val phyDataWidth: Int, val width: Int)(implicit p: Parameters) extends LazyModule{
-  
-  val node = new WlinkRxSourceNode(
-    Seq(WlinkLLSourceRxPortParameters(sources = Seq(WlinkLLSourceRxParameters(Seq(0x0), "WlinkLLRx")), width = width))
-  )
-  
-  lazy val module = new LazyModuleImp(this) with RequireAsyncReset{
-    val io = IO(new Bundle{
-      val clk                   = Input (Bool())
-      val reset                 = Input (Bool())
-      val enable                = Input (Bool())
-      val swi_short_packet_max  = Input (UInt(8.W))
-      
-      val active_lanes          = Input (UInt(3.W))
-      
-      //val swi_allow_ecc_corrected         = Input (Bool())
-      //val swi_ecc_corrected_causes_reset  = Input (Bool())
-      //val swi_ecc_corrupted_causes_reset  = Input (Bool())
-      //val swi_crc_corrupted_causes_reset  = Input (Bool())
-
-      //val sds_received                    = Input (Bool())
-      //val ecc_corrected                   = Output(Bool())
-      //val ecc_corrupted                   = Output(Bool())
-      ////val crc_corrupted                   = Output(Bool())
-      //val external_link_reset_condition   = Input (Bool())
-      val link_reset_condition            = Output(Bool())
-      
-      val link_data   = Input (UInt((numLanes*phyDataWidth).W))
-      val ll_rx_valid = Input (Bool())
-      val ll_rx_state = Output(UInt(4.W))
-    })
-    
-    //val ll_app = node.out.head._1
-    val (ll_app, edgesOut)   = node.out.unzip
-    println(s"wlinkllrx size: ${node.out.size}")
-    
-    val ll_rx = Module(new slink_ll_rx(numLanes, phyDataWidth, width))
-    ll_rx.io.clk                  := io.clk
-    ll_rx.io.reset                := io.reset
-    ll_rx.io.enable               := io.enable
-    ll_rx.io.swi_short_packet_max := io.swi_short_packet_max
-    ll_rx.io.active_lanes         := io.active_lanes
-    
-    ll_rx.io.delimeter            := 0.U //TEMP!!!!!
-    
-    ll_rx.io.sds_received                     := true.B //SEE IF THIS WORKS
-    ll_rx.io.swi_allow_ecc_corrected          := true.B
-    ll_rx.io.swi_ecc_corrected_causes_reset   := false.B
-    ll_rx.io.swi_ecc_corrupted_causes_reset   := true.B
-    ll_rx.io.swi_crc_corrupted_causes_reset   := false.B
-    
-    ll_rx.io.external_link_reset_condition    := false.B
-    
-    ll_rx.io.link_data        := io.link_data
-    ll_rx.io.ll_rx_valid      := io.ll_rx_valid
-    
-    io.ll_rx_state            := ll_rx.io.ll_rx_state
-    
-    
-    for(i <- 0 until node.out.size){
-      ll_app(i).sop          := ll_rx.io.sop
-      ll_app(i).data_id      := ll_rx.io.data_id
-      ll_app(i).word_count   := ll_rx.io.word_count
-      ll_app(i).data         := ll_rx.io.app_data
-      ll_app(i).valid        := ll_rx.io.valid
-      //ll_app(i).crc_corrupt  := ll_rx.io.crc_corrupted
-      ll_app(i).crc          := ll_rx.io.crc
-    }
-    
-  
-  }
-}
-
-class slink_ll_rx(
-  numLanes      : Int,
-  phyDataWidth  : Int,
-  appDataWidth  : Int
-  
-) extends BlackBox (Map(
-  "NUM_LANES"       -> numLanes,
-  "DATA_WIDTH"      -> phyDataWidth,
-  "APP_DATA_WIDTH"  -> appDataWidth
-)) with HasBlackBoxResource{
-
-  val io = IO(new Bundle{
-    val clk         = Input (Bool())
-    val reset       = Input (Bool())
-    val enable      = Input (Bool())
-    
-    val swi_short_packet_max  = Input (UInt(8.W))
-    
-    val sop         = Output(Bool())
-    val data_id     = Output(UInt(8.W))
-    val word_count  = Output(UInt(16.W))
-    val app_data    = Output(UInt(appDataWidth.W))
-    val crc         = Output(UInt(16.W))
-    val valid       = Output(Bool())
-    
-    val delimeter   = Input (UInt(2.W))
-    
-    val active_lanes= Input (UInt(3.W))
-    
-    val swi_allow_ecc_corrected         = Input (Bool())
-    val swi_ecc_corrected_causes_reset  = Input (Bool())
-    val swi_ecc_corrupted_causes_reset  = Input (Bool())
-    val swi_crc_corrupted_causes_reset  = Input (Bool())
-    
-    val sds_received                    = Input (Bool())
-    val ecc_corrected                   = Output(Bool())
-    val ecc_corrupted                   = Output(Bool())
-    val crc_corrupted                   = Output(Bool())
-    val external_link_reset_condition   = Input (Bool())
-    val link_reset_condition            = Output(Bool())
-    
-    val link_data   = Input (UInt((numLanes*phyDataWidth).W))
-    val ll_rx_valid = Input (Bool())
-    val ll_rx_state = Output(UInt(4.W))
-  })
-  
-  addResource("/vsrc/slink_ll_rx.v")
-  addResource("/vsrc/slink_ll_rx_pkt_filt.v")
-  
-}
+// //=====================================================
+// // Old Slink Version
+// //=====================================================
+// class WlinkLLTx(val numLanes: Int, val phyDataWidth: Int, val width: Int)(implicit p: Parameters) extends LazyModule{
+//   val node = new WlinkTxSinkNode(Seq(WlinkLLSinkTxPortParameters(sinks = Seq(WlinkLLSinkTxParameters(Seq(0x0), "WlinkLLTx")), width = width)))
+//   
+//   lazy val module = new LazyModuleImp(this) with RequireAsyncReset{
+//     val io = IO(new Bundle{
+//       val clk                   = Input (Bool())
+//       val reset                 = Input (Bool())
+//       val enable                = Input (Bool())
+//       val swi_short_packet_max  = Input (UInt(8.W))
+//       
+//       val active_lanes          = Input (UInt(3.W))
+//       //val sds_sent              = Input (Bool())
+//       
+//       val ll_tx_valid           = Input (Bool())
+//       val link_data             = Output(UInt((numLanes*phyDataWidth).W))
+//       val link_idle             = Output(Bool())
+//       val ll_tx_state           = Output(UInt(4.W))
+//     })
+//     
+//     val ll_app = node.in.head._1
+//     
+//     val ll_tx = Module(new slink_ll_tx(numLanes, phyDataWidth, width))
+//     ll_tx.io.clk                  := io.clk
+//     ll_tx.io.reset                := io.reset
+//     ll_tx.io.enable               := io.enable
+//     ll_tx.io.swi_short_packet_max := io.swi_short_packet_max
+//     ll_tx.io.active_lanes         := io.active_lanes
+//     ll_tx.io.sds_sent             := true.B//io.sds_sent      //SEE IF THIS WORKS
+//     
+//     ll_tx.io.delimeter  := 0.U //TEMP!!!
+//     
+//     ll_tx.io.sop        := ll_app.sop
+//     ll_tx.io.data_id    := ll_app.data_id
+//     ll_tx.io.word_count := ll_app.word_count
+//     ll_tx.io.app_data   := ll_app.data
+//     ll_app.advance      := ll_tx.io.advance
+//     
+//     ll_tx.io.crc        := ll_app.crc
+//     
+//     ll_tx.io.valid      := false.B //not used
+//     
+//     ll_tx.io.ll_tx_valid  := io.ll_tx_valid
+//     io.link_data          := ll_tx.io.link_data
+//     io.link_idle          := ll_tx.io.link_idle
+//     io.ll_tx_state        := ll_tx.io.ll_tx_state
+//     
+//   }  
+// }
+// 
+// 
+// class slink_ll_tx(
+//   numLanes      : Int,
+//   phyDataWidth  : Int,
+//   appDataWidth  : Int
+//   
+// ) extends BlackBox (Map(
+//   "NUM_LANES"       -> numLanes,
+//   "DATA_WIDTH"      -> phyDataWidth,
+//   "APP_DATA_WIDTH"  -> appDataWidth
+// )) with HasBlackBoxResource{
+// 
+//   val io = IO(new Bundle{
+//     val clk         = Input (Bool())
+//     val reset       = Input (Bool())
+//     val enable      = Input (Bool())
+//     
+//     val swi_short_packet_max  = Input (UInt(8.W))
+//     
+//     val sop         = Input (Bool())
+//     val data_id     = Input (UInt(8.W))
+//     val word_count  = Input (UInt(16.W))
+//     val app_data    = Input (UInt(appDataWidth.W))
+//     val advance     = Output(Bool())
+//     val crc         = Input (UInt(16.W))
+//     val valid       = Input (Bool())
+//     
+//     val delimeter   = Input (UInt(2.W))
+//     
+//     val active_lanes= Input (UInt(3.W))
+//     val sds_sent    = Input (Bool())
+//     
+//     val ll_tx_valid = Input (Bool())
+//     val link_data   = Output(UInt((numLanes*phyDataWidth).W))
+//     val link_idle   = Output(Bool())
+//     val ll_tx_state = Output(UInt(4.W))
+//   })
+//   
+//   addResource("/vsrc/slink_ll_tx.v")
+//   addResource("/vsrc/slink_ecc_syndrome.v")
+// }
+// 
+// 
+// class WlinkLLRx(val numLanes: Int, val phyDataWidth: Int, val width: Int)(implicit p: Parameters) extends LazyModule{
+//   
+//   val node = new WlinkRxSourceNode(
+//     Seq(WlinkLLSourceRxPortParameters(sources = Seq(WlinkLLSourceRxParameters(Seq(0x0), "WlinkLLRx")), width = width))
+//   )
+//   
+//   lazy val module = new LazyModuleImp(this) with RequireAsyncReset{
+//     val io = IO(new Bundle{
+//       val clk                   = Input (Bool())
+//       val reset                 = Input (Bool())
+//       val enable                = Input (Bool())
+//       val swi_short_packet_max  = Input (UInt(8.W))
+//       
+//       val active_lanes          = Input (UInt(3.W))
+//       
+//       //val swi_allow_ecc_corrected         = Input (Bool())
+//       //val swi_ecc_corrected_causes_reset  = Input (Bool())
+//       //val swi_ecc_corrupted_causes_reset  = Input (Bool())
+//       //val swi_crc_corrupted_causes_reset  = Input (Bool())
+// 
+//       //val sds_received                    = Input (Bool())
+//       //val ecc_corrected                   = Output(Bool())
+//       //val ecc_corrupted                   = Output(Bool())
+//       ////val crc_corrupted                   = Output(Bool())
+//       //val external_link_reset_condition   = Input (Bool())
+//       val link_reset_condition            = Output(Bool())
+//       
+//       val link_data   = Input (UInt((numLanes*phyDataWidth).W))
+//       val ll_rx_valid = Input (Bool())
+//       val ll_rx_state = Output(UInt(4.W))
+//     })
+//     
+//     //val ll_app = node.out.head._1
+//     val (ll_app, edgesOut)   = node.out.unzip
+//     println(s"wlinkllrx size: ${node.out.size}")
+//     
+//     val ll_rx = Module(new slink_ll_rx(numLanes, phyDataWidth, width))
+//     ll_rx.io.clk                  := io.clk
+//     ll_rx.io.reset                := io.reset
+//     ll_rx.io.enable               := io.enable
+//     ll_rx.io.swi_short_packet_max := io.swi_short_packet_max
+//     ll_rx.io.active_lanes         := io.active_lanes
+//     
+//     ll_rx.io.delimeter            := 0.U //TEMP!!!!!
+//     
+//     ll_rx.io.sds_received                     := true.B //SEE IF THIS WORKS
+//     ll_rx.io.swi_allow_ecc_corrected          := true.B
+//     ll_rx.io.swi_ecc_corrected_causes_reset   := false.B
+//     ll_rx.io.swi_ecc_corrupted_causes_reset   := true.B
+//     ll_rx.io.swi_crc_corrupted_causes_reset   := false.B
+//     
+//     ll_rx.io.external_link_reset_condition    := false.B
+//     
+//     ll_rx.io.link_data        := io.link_data
+//     ll_rx.io.ll_rx_valid      := io.ll_rx_valid
+//     
+//     io.ll_rx_state            := ll_rx.io.ll_rx_state
+//     
+//     
+//     for(i <- 0 until node.out.size){
+//       ll_app(i).sop          := ll_rx.io.sop
+//       ll_app(i).data_id      := ll_rx.io.data_id
+//       ll_app(i).word_count   := ll_rx.io.word_count
+//       ll_app(i).data         := ll_rx.io.app_data
+//       ll_app(i).valid        := ll_rx.io.valid
+//       //ll_app(i).crc_corrupt  := ll_rx.io.crc_corrupted
+//       ll_app(i).crc          := ll_rx.io.crc
+//     }
+//     
+//   
+//   }
+// }
+// 
+// class slink_ll_rx(
+//   numLanes      : Int,
+//   phyDataWidth  : Int,
+//   appDataWidth  : Int
+//   
+// ) extends BlackBox (Map(
+//   "NUM_LANES"       -> numLanes,
+//   "DATA_WIDTH"      -> phyDataWidth,
+//   "APP_DATA_WIDTH"  -> appDataWidth
+// )) with HasBlackBoxResource{
+// 
+//   val io = IO(new Bundle{
+//     val clk         = Input (Bool())
+//     val reset       = Input (Bool())
+//     val enable      = Input (Bool())
+//     
+//     val swi_short_packet_max  = Input (UInt(8.W))
+//     
+//     val sop         = Output(Bool())
+//     val data_id     = Output(UInt(8.W))
+//     val word_count  = Output(UInt(16.W))
+//     val app_data    = Output(UInt(appDataWidth.W))
+//     val crc         = Output(UInt(16.W))
+//     val valid       = Output(Bool())
+//     
+//     val delimeter   = Input (UInt(2.W))
+//     
+//     val active_lanes= Input (UInt(3.W))
+//     
+//     val swi_allow_ecc_corrected         = Input (Bool())
+//     val swi_ecc_corrected_causes_reset  = Input (Bool())
+//     val swi_ecc_corrupted_causes_reset  = Input (Bool())
+//     val swi_crc_corrupted_causes_reset  = Input (Bool())
+//     
+//     val sds_received                    = Input (Bool())
+//     val ecc_corrected                   = Output(Bool())
+//     val ecc_corrupted                   = Output(Bool())
+//     val crc_corrupted                   = Output(Bool())
+//     val external_link_reset_condition   = Input (Bool())
+//     val link_reset_condition            = Output(Bool())
+//     
+//     val link_data   = Input (UInt((numLanes*phyDataWidth).W))
+//     val ll_rx_valid = Input (Bool())
+//     val ll_rx_state = Output(UInt(4.W))
+//   })
+//   
+//   addResource("/vsrc/slink_ll_rx.v")
+//   addResource("/vsrc/slink_ll_rx_pkt_filt.v")
+//   
+// }
 
 
 /**
