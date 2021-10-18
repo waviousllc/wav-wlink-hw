@@ -43,6 +43,9 @@ case class WlinkParams(
   apbIniFCOffset    : BigInt = 0x218000,                          //Starting Offset from wlink base addr of all APBIni nodes
   gbParams          : Option[Seq[WlinkGeneralBusParams]] = None,
   gbFCOffset        : BigInt = 0x220000,                          //Starting Base address of all GeneralBus nodes
+  
+  tlFCOffset        : BigInt = 0x228000,                          //Starting Offset from wlink base addr of all TL conversion nodes
+  tlParams          : Option[Seq[WlinkTLParams]] = None,
   noRegTest         : Boolean= false
 )
 
@@ -58,6 +61,7 @@ class Wlink()(implicit p: Parameters) extends WlinkBase()
   with CanHaveAPBTgtPort
   with CanHaveAPBIniPort
   with CanHaveGeneralBusPort
+  with CanHaveTLPort
 
 class WlinkBase()(implicit p: Parameters) extends LazyModule with WlinkApplicationLayerChecks{
 

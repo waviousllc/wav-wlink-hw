@@ -189,3 +189,42 @@ class Wlink8LaneTwoAXIPortsOneAPBPortConfig extends Config(
   new WithWlinkGPIOTwoAXIOneAPBTgtConfig() ++
   new BaseWlinkConfig
 )
+
+
+
+
+class WithWlinkGPIOTLTestConfig(
+  numTxLanes      : Int = 1,
+  numRxLanes      : Int = 1
+) extends Config((site, here, up) => {
+
+  case WlinkParamsKey => WlinkParams(
+    phyParams = WlinkPHYGPIOExampleParams(
+      numTxLanes = numTxLanes,
+      numRxLanes = numRxLanes,
+    ),
+    tlParams = Some(Seq(
+      WlinkTLParams(
+        master = Some(WlinkTLMasterPortParams(
+          base      = 0x0,
+          size      = 0x800000,
+          beatBytes = 4,
+          idBits    = 4,
+          name      = "tlMst"
+        )),
+        slave = Some(WlinkTLSlavePortParams(
+          base      = 0x0,
+          size      = 0x800000,
+          beatBytes = 4,
+          idBits    = 4,
+          name      = "tlSlv"
+        ))
+      )
+    ))
+  )
+})
+
+class WlinkTLTestConfig extends Config(
+  new WithWlinkGPIOTLTestConfig() ++
+  new BaseWlinkConfig
+)
