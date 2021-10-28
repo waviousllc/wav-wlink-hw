@@ -17,6 +17,7 @@ class WithWlinkSimpleAXITestConfig(
   size        : BigInt = 0x100000,
   beatBytes   : Int = 4,
   idBits      : Int = 4,
+  forceMaxXfer: Int = 0
 ) extends Config((site, here, up) => {
   case MonitorsEnabled => false
   
@@ -29,6 +30,7 @@ class WithWlinkSimpleAXITestConfig(
       base = 0x0,
       size = size,
       beatBytes = beatBytes,
+      forceMaxXfer = forceMaxXfer,
       idBits = idBits)))
   )
 })
@@ -55,6 +57,17 @@ class BaseWlinkTestConfig extends Config(
   new WithWavComponentPrefix("testing")
 )
 
+
+//For Tony!!!!
+class TonysAXI32bit1LaneWlinkTestConfig extends Config(
+  new WithWlinkSimpleAXITestConfig(
+    numTxLanes = 1, 
+    numRxLanes = 1,
+    size       = 0x40,
+    forceMaxXfer= 4,
+    beatBytes  = 4) ++
+  new BaseWlinkTestConfig
+)
 
 class AXI32bit1LaneWlinkTestConfig extends Config(
   new WithWlinkSimpleAXITestConfig(

@@ -44,7 +44,8 @@ case class WlinkAxiParams(
   dataFifoSize        : Int = 32,
   nonDataFifoSize     : Int = 8,
   startingLongDataId  : Int = 0x80,
-  startingShortDataId : Int = 0x8)
+  startingShortDataId : Int = 0x8,
+  forceMaxXfer        : Int = 0)
 
 
 /**
@@ -105,7 +106,7 @@ trait CanHaveAXI4Port { this: Wlink =>
                                                fcName           = axiname,
                                                dataDepth        = axiParams.dataFifoSize,
                                                nonDataDepth     = axiParams.nonDataFifoSize,
-                                               maxXferBytes     = axiParams.beatBytes * (1 << AXI4Parameters.lenBits),
+                                               maxXferBytes     = if(axiParams.forceMaxXfer==0) axiParams.beatBytes * (1 << AXI4Parameters.lenBits) else axiParams.forceMaxXfer,
                                                noRegTest        = params.noRegTest))
         
       //Id Checks (need to make this better)
